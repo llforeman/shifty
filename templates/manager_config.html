@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Configuración del Manager</title>
+    <style>
+        /* Estilos básicos para el dashboard */
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: #fff;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
+        }
+
+        h1,
+        h2 {
+            color: #333;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+        }
+
+        .config-group {
+            margin-bottom: 30px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+        }
+
+        label {
+            display: block;
+            margin-top: 10px;
+            font-weight: bold;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 8px;
+            margin-top: 5px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+
+        input[type="submit"] {
+            background-color: #007bff;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+
+        input[type="submit"]:hover {
+            background-color: #0056b3;
+        }
+
+        .penalty {
+            color: #cc0000;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>Dashboard de Configuración del Manager</h1>
+        <p>Aquí puede ajustar las variables que afectan a la lógica de optimización del algoritmo PuLP.</p>
+
+        <form method="POST">
+            <h2>Criterios de Capacidad y Horizonte</h2>
+            <div class="config-group">
+                <label for="S1">S1 - Mínimo de Pediatras por Día:</label>
+                <input type="text" id="S1" name="S1" value="{{ config.S1 }}" required>
+
+                <label for="S2">S2 - Máximo de Pediatras por Día:</label>
+                <input type="text" id="S2" name="S2" value="{{ config.S2 }}" required>
+
+                <label for="M_START">M_START - Días de solapamiento inicial (lookahead):</label>
+                <input type="text" id="M_START" name="M_START" value="{{ config.M_START }}" required>
+
+                <label for="M_MIN">M_MIN - Días de solapamiento mínimo:</label>
+                <input type="text" id="M_MIN" name="M_MIN" value="{{ config.M_MIN }}" required>
+
+                <label for="USE_LEXICOGRAPHIC_FAIRNESS">USE_LEXICOGRAPHIC_FAIRNESS (True/False):</label>
+                <input type="text" id="USE_LEXICOGRAPHIC_FAIRNESS" name="USE_LEXICOGRAPHIC_FAIRNESS"
+                    value="{{ config.USE_LEXICOGRAPHIC_FAIRNESS }}" required>
+            </div>
+
+            <h2>Pesos de Penalización (Dureza y Equidad)</h2>
+            <div class="config-group">
+                {% for key, value in config.items() %}
+                {% if key.startswith('PENALTY_') %}
+                <label for="{{ key }}" class="penalty">{{ key.replace('PENALTY_', '') }}:</label>
+                <input type="text" id="{{ key }}" name="{{ key }}" value="{{ value }}" required>
+                {% endif %}
+                {% endfor %}
+                <label for="BALANCE_ALPHA">BALANCE_ALPHA (Ajuste de Equidad):</label>
+                <input type="text" id="BALANCE_ALPHA" name="BALANCE_ALPHA" value="{{ config.BALANCE_ALPHA }}" required>
+            </div>
+
+            <input type="submit" value="Guardar Cambios de Configuración">
+        </form>
+    </div>
+</body>
+
+</html>
