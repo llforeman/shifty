@@ -342,6 +342,17 @@ def manager_config():
     return render_template('manager_config.html', config=config_dict)
 
 
+@app.route('/generate_schedule', methods=['POST'])
+@login_required
+@role_required('manager')
+def generate_schedule_route():
+    try:
+        from generate_schedule import generate_and_save
+        generate_and_save()
+        return redirect(url_for('manager_config', success='Schedule generated successfully!'))
+    except Exception as e:
+        return redirect(url_for('manager_config', error=f'Generation failed: {str(e)}'))
+
 @app.route('/calendar')
 @app.route('/calendar/<int:year>/<int:month>')
 def calendar_view(year=None, month=None):
