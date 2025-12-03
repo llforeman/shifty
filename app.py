@@ -17,6 +17,11 @@ app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
+# Configure session cookies for iframe support (cross-domain)
+app.config['SESSION_COOKIE_SAMESITE'] = 'None'
+app.config['SESSION_COOKIE_SECURE'] = True  # Required when SameSite=None
+app.config['SESSION_COOKIE_HTTPONLY'] = True  # Security best practice
+
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
