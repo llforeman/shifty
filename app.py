@@ -172,6 +172,29 @@ def init_db_and_seed():
             db.session.commit()
             print("Created default admin user (admin/admin123)")
 
+# Initialize database on first request
+try:
+    with app.app_context():
+        db.create_all()
+        # Only seed if it's actually empty
+        if Pediatrician.query.count() == 0 or User.query.count() == 0:
+            init_db_and_seed()
+except Exception as e:
+    print(f"Database initialization will happen on first request: {e}")
+
+@app.before_request
+def initialize_database():
+    """Initialize database on first request if not already done."""
+    try:
+        # Check if User table exists by attempting a simple query
+        User.query.first()
+    except Exception:
+        # If it fails, initialize the database
+        with app.app_context():
+            init_db_and_seed()
+
+
+
 # -----------------
 # 3. WEB ROUTES (The logic that serves the pages)
 # -----------------
