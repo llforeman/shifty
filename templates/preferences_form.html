@@ -1,30 +1,104 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <title>{{ pediatrician.name }} - Shift Preferences</title>
     <style>
-        body { font-family: Arial, sans-serif; background-color: #f4f4f4; color: #333; padding: 20px; }
-        .container { max-width: 800px; margin: 0 auto; background: #fff; padding: 30px; border-radius: 8px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.1); }
-        h2 { border-bottom: 2px solid #ccc; padding-bottom: 10px; margin-top: 0; }
-        form label { display: block; margin-top: 10px; font-weight: bold; }
-        form input[type="date"], form select, form input[type="submit"] {
-            width: 100%; padding: 10px; margin-top: 5px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            color: #333;
+            padding: 20px;
         }
-        form input[type="submit"] { background-color: #4CAF50; color: white; cursor: pointer; margin-top: 20px; }
-        form input[type="submit"]:hover { background-color: #45a049; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        table, th, td { border: 1px solid #ddd; }
-        th, td { padding: 8px; text-align: left; }
-        th { background-color: #f2f2f2; }
-        .delete-btn { background: #f44336; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: #fff;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+
+        h2 {
+            border-bottom: 2px solid #ccc;
+            padding-bottom: 10px;
+            margin-top: 0;
+        }
+
+        form label {
+            display: block;
+            margin-top: 10px;
+            font-weight: bold;
+        }
+
+        form input[type="date"],
+        form select,
+        form input[type="submit"] {
+            width: 100%;
+            padding: 10px;
+            margin-top: 5px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+
+        form input[type="submit"] {
+            background-color: #4CAF50;
+            color: white;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+
+        form input[type="submit"]:hover {
+            background-color: #45a049;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        table,
+        th,
+        td {
+            border: 1px solid #ddd;
+        }
+
+        th,
+        td {
+            padding: 8px;
+            text-align: left;
+        }
+
+        th {
+            background-color: #f2f2f2;
+        }
+
+        .delete-btn {
+            background: #f44336;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
     </style>
 </head>
+
 <body>
     <div class="container">
-        <h1>Welcome, {{ pediatrician.name }}</h1>
-        <p>Your current monthly shift limits (Min/Max): <strong>{{ pediatrician.min_shifts }}/{{ pediatrician.max_shifts }}</strong></p>
-        <p>Your current weekend limits (Min/Max): <strong>{{ pediatrician.min_weekend }}/{{ pediatrician.max_weekend }}</strong></p>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <h1>Welcome, {{ pediatrician.name }}</h1>
+            <a href="{{ url_for('logout') }}"
+                style="color: #cc0000; text-decoration: none; font-weight: bold;">Logout</a>
+        </div>
+        <p>Your current monthly shift limits (Min/Max): <strong>{{ pediatrician.min_shifts }}/{{ pediatrician.max_shifts
+                }}</strong></p>
+        <p>Your current weekend limits (Min/Max): <strong>{{ pediatrician.min_weekend }}/{{ pediatrician.max_weekend
+                }}</strong></p>
 
         <h2>Submit a New Preference or Constraint</h2>
         <form method="POST">
@@ -63,4 +137,5 @@
         {% endif %}
     </div>
 </body>
+
 </html>

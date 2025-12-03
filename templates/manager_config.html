@@ -72,7 +72,12 @@
 
 <body>
     <div class="container">
-        <h1>Dashboard de Configuración del Manager</h1>
+        <div
+            style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 20px;">
+            <h1 style="border-bottom: none; margin: 0; padding: 0;">Dashboard de Configuración</h1>
+            <a href="{{ url_for('logout') }}" style="color: #cc0000; text-decoration: none; font-weight: bold;">Cerrar
+                Sesión</a>
+        </div>
         <p>Aquí puede ajustar las variables que afectan a la lógica de optimización del algoritmo PuLP.</p>
 
         <form method="POST">
