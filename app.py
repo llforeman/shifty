@@ -267,16 +267,13 @@ def login():
             login_user(user)
             next_page = request.args.get('next')
             
+            
             if next_page:
                 return redirect(next_page)
             
-            # Redirect based on role
-            if user.role == 'manager':
-                return redirect(url_for('manager_config'))
-            elif user.pediatrician_id:
-                return redirect(url_for('preferences_page', ped_id=user.pediatrician_id))
-            else:
-                return redirect(url_for('login')) # Should not happen for valid users
+            # All users go to profile page after login
+            return redirect(url_for('profile'))
+        
         
         return render_template('login.html', error='Usuario o contraseña inválidos')
 

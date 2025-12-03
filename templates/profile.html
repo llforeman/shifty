@@ -1,132 +1,63 @@
-<!DOCTYPE html>
-<html lang="es">
+{% extends "base.html" %}
 
-<head>
-    <meta charset="UTF-8">
-    <title>Mi Perfil</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            background-color: #f4f4f4;
-            padding: 20px;
-        }
+{% block title %}Mi Perfil - Shifty{% endblock %}
 
-        .container {
-            max-width: 600px;
-            margin: 0 auto;
-            background: #fff;
-            padding: 30px;
-            border-radius: 8px;
-            box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
-        }
+{% block content %}
+<h1>Mi Perfil</h1>
 
-        h1 {
-            color: #333;
-            border-bottom: 1px solid #eee;
-            padding-bottom: 10px;
-        }
+{% if msg %}
+<div class="alert alert-{{ msg_category }}">
+    {{ msg }}
+</div>
+{% endif %}
 
-        .info-group {
-            margin-bottom: 20px;
-        }
-
-        label {
-            display: block;
-            margin-top: 10px;
-            font-weight: bold;
-        }
-
-        input[type="password"] {
-            width: 100%;
-            padding: 10px;
-            margin-top: 5px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            box-sizing: border-box;
-        }
-
-        input[type="submit"] {
-            background-color: #007bff;
-            color: white;
-            padding: 10px 15px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            margin-top: 20px;
-        }
-
-        input[type="submit"]:hover {
-            background-color: #0056b3;
-        }
-
-        .msg {
-            padding: 10px;
-            border-radius: 4px;
-            margin-bottom: 15px;
-        }
-
-        .success {
-            color: #155724;
-            background-color: #d4edda;
-        }
-
-        .error {
-            color: #721c24;
-            background-color: #f8d7da;
-        }
-
-        .nav-links {
-            margin-bottom: 20px;
-        }
-
-        .nav-links a {
-            margin-right: 15px;
-            color: #007bff;
-            text-decoration: none;
-            font-weight: bold;
-        }
-    </style>
-</head>
-
-<body>
-    <div class="container">
-        <div class="nav-links">
-            <a href="{{ url_for('my_prefs') }}">Mis Preferencias</a>
-            {% if current_user.role == 'manager' %}
-            <a href="{{ url_for('manager_config') }}">Configuración Manager</a>
-            {% endif %}
-            <a href="{{ url_for('logout') }}" style="color: #cc0000;">Cerrar Sesión</a>
-        </div>
-
-        <h1>Mi Perfil</h1>
-
-        {% if msg %}
-        <div class="msg {{ msg_category }}">{{ msg }}</div>
-        {% endif %}
-
-        <div class="info-group">
-            <p><strong>Usuario:</strong> {{ current_user.username }}</p>
-            <p><strong>Rol:</strong> {{ current_user.role }}</p>
-            <p><strong>Pediatra Vinculado:</strong>
-                {% if current_user.pediatrician_id %}
-                ID {{ current_user.pediatrician_id }}
+<div style="margin-bottom: 30px;">
+    <h2 style="color: #555; margin-bottom: 15px;">Información de Usuario</h2>
+    <table style="width: 100%; border-collapse: collapse;">
+        <tr style="border-bottom: 1px solid #ddd;">
+            <td style="padding: 10px; font-weight: bold; width: 30%;">Usuario:</td>
+            <td style="padding: 10px;">{{ current_user.username }}</td>
+        </tr>
+        <tr style="border-bottom: 1px solid #ddd;">
+            <td style="padding: 10px; font-weight: bold;">Rol:</td>
+            <td style="padding: 10px;">
+                {% if current_user.role == 'manager' %}
+                <span style="background: #3498db; color: white; padding: 4px 12px; border-radius: 4px;">Manager</span>
                 {% else %}
-                <span style="color: orange;">No vinculado (Contacte al administrador)</span>
+                <span style="background: #2ecc71; color: white; padding: 4px 12px; border-radius: 4px;">Usuario</span>
                 {% endif %}
-            </p>
+            </td>
+        </tr>
+        <tr style="border-bottom: 1px solid #ddd;">
+            <td style="padding: 10px; font-weight: bold;">Pediatra Asociado:</td>
+            <td style="padding: 10px;">
+                {% if current_user.pediatrician_id %}
+                ID: {{ current_user.pediatrician_id }}
+                {% else %}
+                <span style="color: #e74c3c;">No vinculado</span>
+                {% endif %}
+            </td>
+        </tr>
+    </table>
+</div>
+
+<div style="background: #ecf0f1; padding: 20px; border-radius: 6px;">
+    <h2 style="color: #555; margin-bottom: 15px;">Cambiar Contraseña</h2>
+    <form method="POST">
+        <div style="margin-bottom: 15px;">
+            <label for="new_password" style="display: block; margin-bottom: 5px; font-weight: bold;">Nueva
+                Contraseña:</label>
+            <input type="password" id="new_password" name="new_password" required
+                style="width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px;">
         </div>
-
-        <h2>Cambiar Contraseña</h2>
-        <form method="POST">
-            <label for="new_password">Nueva Contraseña:</label>
-            <input type="password" id="new_password" name="new_password" required>
-
-            <label for="confirm_password">Confirmar Nueva Contraseña:</label>
-            <input type="password" id="confirm_password" name="confirm_password" required>
-
-            <input type="submit" value="Actualizar Contraseña">
-        </form>
-    </div>
-</body>
-
-</html>
+        <div style="margin-bottom: 15px;">
+            <label for="confirm_password" style="display: block; margin-bottom: 5px; font-weight: bold;">Confirmar
+                Contraseña:</label>
+            <input type="password" id="confirm_password" name="confirm_password" required
+                style="width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px;">
+        </div>
+        <input type="submit" value="Actualizar Contraseña"
+            style="background: #3498db; color: white; padding: 12px 24px; border: none; border-radius: 4px; cursor: pointer; font-size: 16px;">
+    </form>
+</div>
+{% endblock %}

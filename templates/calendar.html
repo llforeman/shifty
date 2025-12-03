@@ -1,138 +1,106 @@
-<!DOCTYPE html>
-<html lang="es">
+{% extends "base.html" %}
 
-<head>
-    <meta charset="UTF-8">
-    <title>Calendario de Guardias</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            background-color: #f4f4f4;
-            padding: 20px;
-        }
+{% block title %}Calendario - Shifty{% endblock %}
 
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            background: #fff;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
-        }
+{% block extra_styles %}
+<style>
+    .nav-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+    }
 
-        h1 {
-            text-align: center;
-            color: #333;
-        }
+    .nav-btn {
+        background-color: #3498db;
+        color: white;
+        padding: 10px 20px;
+        text-decoration: none;
+        border-radius: 4px;
+        font-weight: bold;
+    }
 
-        .nav-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-        }
+    .nav-btn:hover {
+        background-color: #2980b9;
+    }
 
-        .nav-btn {
-            background-color: #007bff;
-            color: white;
-            padding: 10px 20px;
-            text-decoration: none;
-            border-radius: 4px;
-            font-weight: bold;
-        }
+    .calendar-grid {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 10px;
+    }
 
-        .nav-btn:hover {
-            background-color: #0056b3;
-        }
+    .day-header {
+        text-align: center;
+        font-weight: bold;
+        background: #ecf0f1;
+        padding: 10px;
+        border-radius: 4px;
+    }
 
-        .calendar-grid {
-            display: grid;
-            grid-template-columns: repeat(7, 1fr);
-            gap: 10px;
-        }
+    .day-cell {
+        background: #fff;
+        border: 1px solid #ddd;
+        min-height: 120px;
+        padding: 10px;
+        border-radius: 4px;
+    }
 
-        .day-header {
-            text-align: center;
-            font-weight: bold;
-            background: #eee;
-            padding: 10px;
-            border-radius: 4px;
-        }
+    .day-number {
+        font-weight: bold;
+        margin-bottom: 5px;
+        display: block;
+        border-bottom: 1px solid #eee;
+        padding-bottom: 5px;
+    }
 
-        .day-cell {
-            background: #fff;
-            border: 1px solid #ddd;
-            min-height: 120px;
-            padding: 10px;
-            border-radius: 4px;
-            position: relative;
-        }
+    .shift-item {
+        background: #e3f2fd;
+        color: #0d47a1;
+        padding: 4px;
+        margin-bottom: 4px;
+        border-radius: 3px;
+        font-size: 0.9em;
+    }
 
-        .day-number {
-            font-weight: bold;
-            margin-bottom: 5px;
-            display: block;
-            border-bottom: 1px solid #eee;
-            padding-bottom: 5px;
-        }
+    .empty-cell {
+        background: #f9f9f9;
+        border: none;
+    }
+</style>
+{% endblock %}
 
-        .shift-item {
-            background: #e3f2fd;
-            color: #0d47a1;
-            padding: 4px;
-            margin-bottom: 4px;
-            border-radius: 3px;
-            font-size: 0.9em;
-        }
+{% block content %}
+<div class="nav-header">
+    <a href="{{ url_for('calendar_view', year=prev_year, month=prev_month) }}" class="nav-btn">&larr; Anterior</a>
+    <h1 style="margin: 0;">{{ month_name }} {{ year }}</h1>
+    <a href="{{ url_for('calendar_view', year=next_year, month=next_month) }}" class="nav-btn">Siguiente &rarr;</a>
+</div>
 
-        .empty-cell {
-            background: #f9f9f9;
-            border: none;
-        }
+<div class="calendar-grid">
+    <div class="day-header">Lun</div>
+    <div class="day-header">Mar</div>
+    <div class="day-header">Mié</div>
+    <div class="day-header">Jue</div>
+    <div class="day-header">Vie</div>
+    <div class="day-header">Sáb</div>
+    <div class="day-header">Dom</div>
 
-        .today {
-            border: 2px solid #007bff;
-        }
-    </style>
-</head>
-
-<body>
-    <div class="container">
-        <div class="nav-header">
-            <a href="{{ url_for('calendar_view', year=prev_year, month=prev_month) }}" class="nav-btn">&larr;
-                Anterior</a>
-            <h1>{{ month_name }} {{ year }}</h1>
-            <a href="{{ url_for('calendar_view', year=next_year, month=next_month) }}" class="nav-btn">Siguiente
-                &rarr;</a>
-        </div>
-
-        <div class="calendar-grid">
-            <div class="day-header">Lun</div>
-            <div class="day-header">Mar</div>
-            <div class="day-header">Mié</div>
-            <div class="day-header">Jue</div>
-            <div class="day-header">Vie</div>
-            <div class="day-header">Sáb</div>
-            <div class="day-header">Dom</div>
-
-            {% for week in month_calendar %}
-            {% for day in week %}
-            {% if day == 0 %}
-            <div class="day-cell empty-cell"></div>
-            {% else %}
-            <div class="day-cell">
-                <span class="day-number">{{ day }}</span>
-                {% if shifts.get(day) %}
-                {% for shift in shifts[day] %}
-                <div class="shift-item">{{ shift.pediatrician.name }}</div>
-                {% endfor %}
-                {% endif %}
-            </div>
-            {% endif %}
-            {% endfor %}
-            {% endfor %}
-        </div>
+    {% for week in month_calendar %}
+    {% for day in week %}
+    {% if day == 0 %}
+    <div class="day-cell empty-cell"></div>
+    {% else %}
+    <div class="day-cell">
+        <span class="day-number">{{ day }}</span>
+        {% if shifts.get(day) %}
+        {% for shift in shifts[day] %}
+        <div class="shift-item">{{ shift.pediatrician.name }}</div>
+        {% endfor %}
+        {% endif %}
     </div>
-</body>
-
-</html>
+    {% endif %}
+    {% endfor %}
+    {% endfor %}
+</div>
+{% endblock %}

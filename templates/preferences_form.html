@@ -1,141 +1,120 @@
-<!DOCTYPE html>
-<html lang="en">
+{% extends "base.html" %}
 
-<head>
-    <meta charset="UTF-8">
-    <title>{{ pediatrician.name }} - Shift Preferences</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            background-color: #f4f4f4;
-            color: #333;
-            padding: 20px;
-        }
+{% block title %}{{ pediatrician.name }} - Preferencias{% endblock %}
 
-        .container {
-            max-width: 800px;
-            margin: 0 auto;
-            background: #fff;
-            padding: 30px;
-            border-radius: 8px;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-        }
+{% block extra_styles %}
+<style>
+    form label {
+        display: inline-block;
+        margin-top: 10px;
+        font-weight: bold;
+    }
 
-        h2 {
-            border-bottom: 2px solid #ccc;
-            padding-bottom: 10px;
-            margin-top: 0;
-        }
+    form input,
+    form select {
+        width: 100%;
+        padding: 8px;
+        margin-top: 5px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        box-sizing: border-box;
+    }
 
-        form label {
-            display: block;
-            margin-top: 10px;
-            font-weight: bold;
-        }
+    form button {
+        margin-top: 15px;
+        padding: 10px 20px;
+        background-color: #3498db;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+    }
 
-        form input[type="date"],
-        form select,
-        form input[type="submit"] {
-            width: 100%;
-            padding: 10px;
-            margin-top: 5px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            box-sizing: border-box;
-        }
+    form button:hover {
+        background-color: #2980b9;
+    }
 
-        form input[type="submit"] {
-            background-color: #4CAF50;
-            color: white;
-            cursor: pointer;
-            margin-top: 20px;
-        }
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 20px;
+    }
 
-        form input[type="submit"]:hover {
-            background-color: #45a049;
-        }
+    table th,
+    table td {
+        padding: 12px;
+        text-align: left;
+        border-bottom: 1px solid #ddd;
+    }
 
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
-        }
+    table th {
+        background-color: #f2f2f2;
+        font-weight: bold;
+    }
 
-        table,
-        th,
-        td {
-            border: 1px solid #ddd;
-        }
+    .delete-btn {
+        background-color: #e74c3c;
+        color: white;
+        padding: 5px 10px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+    }
 
-        th,
-        td {
-            padding: 8px;
-            text-align: left;
-        }
+    .delete-btn:hover {
+        background-color: #c0392b;
+    }
+</style>
+{% endblock %}
 
-        th {
-            background-color: #f2f2f2;
-        }
+{% block content %}
+<h1>{{ pediatrician.name}} - Preferencias de Guardias</h1>
 
-        .delete-btn {
-            background: #f44336;
-            color: white;
-            border: none;
-            padding: 5px 10px;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-    </style>
-</head>
+<div style="background: #e8f4f8; padding: 15px; border-radius: 6px; margin-bottom: 20px;">
+    <h2 style="margin-top: 0;">Añadir Preferencia</h2>
+    <form method="POST">
+        <label for="req_date">Fecha:</label>
+        <input type="date" id="req_date" name="req_date" required>
 
-<body>
-    <div class="container">
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-            <h1>Welcome, {{ pediatrician.name }}</h1>
-            <a href="{{ url_for('logout') }}"
-                style="color: #cc0000; text-decoration: none; font-weight: bold;">Logout</a>
-        </div>
-        <p>Your current monthly shift limits (Min/Max): <strong>{{ pediatrician.min_shifts }}/{{ pediatrician.max_shifts
-                }}</strong></p>
-        <p>Your current weekend limits (Min/Max): <strong>{{ pediatrician.min_weekend }}/{{ pediatrician.max_weekend
-                }}</strong></p>
+        <label for="req_type">Tipo de Preferencia:</label>
+        <select id="req_type" name="req_type" required>
+            <option value="Vacation">Vacation (Vacaciones)</option>
+            <option value="Skip">Skip (No disponible)</option>
+            <option value="Prefer">Prefer (Prefiero trabajar)</option>
+            <option value="Prefer Not">Prefer Not (Prefiero no trabajar)</option>
+        </select>
 
-        <h2>Submit a New Preference or Constraint</h2>
-        <form method="POST">
-            <label for="request_date">Date:</label>
-            <input type="date" id="request_date" name="request_date" required>
+        <button type="submit">Guardar Preferencia</button>
+    </form>
+</div>
 
-            <label for="request_type">Request Type:</label>
-            <select id="request_type" name="request_type" required>
-                <option value="" disabled selected>Select an option</option>
-                <option value="Prefer">Prefer (Soft Priority)</option>
-                <option value="Prefer Not">Prefer Not (Soft Penalty)</option>
-                <option value="Vacation">Vacation (Hard Cannot Do - also blocks +/- 1 day)</option>
-                <option value="Skip">Skip (Hard Cannot Do)</option>
-                <option value="Delete">Delete Existing Request</option>
-            </select>
-
-            <input type="submit" value="Save Preference">
-        </form>
-
-        <h2>Current Saved Preferences</h2>
-        {% if existing_prefs %}
-        <table>
-            <tr>
-                <th>Date</th>
-                <th>Type</th>
-            </tr>
-            {% for pref in existing_prefs %}
-            <tr>
-                <td>{{ pref.date.strftime('%Y-%m-%d') }}</td>
-                <td>{{ pref.type }}</td>
-            </tr>
-            {% endfor %}
-        </table>
-        {% else %}
-        <p>No preferences or constraints have been saved yet.</p>
-        {% endif %}
-    </div>
-</body>
-
-</html>
+<h2>Preferencias Guardadas</h2>
+{% if existing_prefs %}
+<table>
+    <thead>
+        <tr>
+            <th>Fecha</th>
+            <th>Tipo</th>
+            <th>Acción</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for pref in existing_prefs %}
+        <tr>
+            <td>{{ pref.date.strftime('%Y-%m-%d') }}</td>
+            <td>{{ pref.type }}</td>
+            <td>
+                <form method="POST" style="display: inline;">
+                    <input type="hidden" name="req_date" value="{{ pref.date.strftime('%Y-%m-%d') }}">
+                    <input type="hidden" name="req_type" value="Delete">
+                    <button type="submit" class="delete-btn">Eliminar</button>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<p style="color: #999; font-style: italic;">No hay preferencias guardadas.</p>
+{% endif %}
+{% endblock %}
