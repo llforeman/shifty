@@ -389,6 +389,19 @@ def generate_schedule_route():
     except Exception as e:
         return redirect(url_for('manager_config', error=f'Generation failed: {str(e)}'))
 
+@app.route('/debug/shifts')
+@login_required
+@role_required('manager')
+def debug_shifts():
+    """Debug route to see all shifts in database"""
+    all_shifts = Shift.query.order_by(Shift.date).all()
+    output = f"<h1>Total Shifts: {len(all_shifts)}</h1>"
+    output += "<ul>"
+    for shift in all_shifts:
+        output += f"<li>Pediatrician {shift.pediatrician_id} on {shift.date}</li>"
+    output += "</ul>"
+    return output
+
 @app.route('/calendar')
 @app.route('/calendar/<int:year>/<int:month>')
 def calendar_view(year=None, month=None):
