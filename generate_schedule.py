@@ -273,7 +273,7 @@ def generate_and_save(start_year=2026, start_month=7, end_year=2026, end_month=1
                         d_free = midpoint_free + CONF['BALANCE_ALPHA'] * imbalance_free
                         desired_free[p] = max(min_free, min(max_free, d_free))
 
-                    prob = LpProblem(f"Solve_{month}_{M_try}", LpMinimize)
+                    prob = LpProblem(f"Solve_{current_month}_{M_try}", LpMinimize)
                     x = LpVariable.dicts("Shift", ((p, d) for p in pediatricians for d in days_all), cat=LpBinary)
                     week_violations = LpVariable.dicts("WeekViolation", ((p, w) for p in pediatricians for w in range(5)), cat=LpBinary)
                     missed_preferred = LpVariable.dicts("MissedPreferred", ((p, d) for p in pediatricians for d in days_all), cat=LpBinary)
