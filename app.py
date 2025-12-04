@@ -15,6 +15,11 @@ app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('SQLALCHEMY_DATABASE_URI')
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+# Prevent MySQL "server has gone away" errors
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+    'pool_pre_ping': True,  # Test connections before using them
+    'pool_recycle': 3600,   # Recycle connections after 1 hour
+}
 db = SQLAlchemy(app)
 
 # Configure session cookies for iframe support (cross-domain)
