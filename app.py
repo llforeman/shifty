@@ -490,6 +490,13 @@ def calendar_view(year=None, month=None):
     
     shifts_list = shifts_query.all()
     
+    # If no shifts found for this month, check for future shifts
+    next_shift_date = None
+    if not shifts_list:
+        next_shift_query = Shift.query.filter(Shift.date > end_date).order_by(Shift.date).first()
+        if next_shift_query:
+            next_shift_date = next_shift_query.date
+
     # Organize shifts by day
     shifts_by_day = {}
     for shift in shifts_list:
@@ -504,7 +511,8 @@ def calendar_view(year=None, month=None):
                            year=year, month=month, month_name=month_name,
                            month_calendar=cal, shifts=shifts_by_day,
                            prev_year=prev_year, prev_month=prev_month,
-                           next_year=next_year, next_month=next_month)
+                           next_year=next_year, next_month=next_month,
+                           next_shift_date=next_shift_date)
 
 if __name__ == '__main__':
     # Initialize database before running the app
