@@ -182,31 +182,13 @@ def init_db_and_seed():
             db.session.commit()
             print("Created default admin user (admin/admin123)")
 
-# Initialize database on startup (one-time)
-_db_initialized = False
-
-def ensure_db_initialized():
-    """One-time database initialization"""
-    global _db_initialized
-    if not _db_initialized:
-        try:
-            with app.app_context():
-                db.create_all()
-                # Only seed if it's actually empty
-                try:
-                    user_count = User.query.count()
-                    if user_count == 0:
-                        init_db_and_seed()
-                except Exception:
-                    # Tables don't exist yet, seed them
-                    init_db_and_seed()
-                _db_initialized = True
-        except Exception as e:
-            print(f"Database initialization error: {e}")
-            db.session.rollback()
-
-# Try to initialize on module load
-ensure_db_initialized()
+# Initialize database when app starts (within proper context)
+with app.app_context():
+    try:
+        db.create_all()
+        print("Database tables created.")
+    except Exception as e:
+        print(f"Database initialization skipped: {e}")
 
 
 
