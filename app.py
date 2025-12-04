@@ -372,8 +372,27 @@ def manager_config():
 @role_required('manager')
 def generate_schedule_route():
     try:
+        # Get date range from form
+        start_year = int(request.form.get('start_year'))
+        start_month = int(request.form.get('start_month'))
+        end_year = int(request.form.get('end_year'))
+        end_month = int(request.form.get('end_month'))
+        
+        # Validate date range
+        start_date = datetime(start_year, start_month, 1)
+        end_date = datetime(end_year, end_month, 1)
+        
+        if end_date < start_date:
+            return redirect(url_for('manager_config', error='La fecha de fin debe ser posterior a la fecha de inicio'))
+        
+        # Calculate number of months
+        months_diff = (end_year - start_year) * 12 + (end_month - start_month) + 1
+        
+        if months_diff < 1 or months_diff > 6:
+            return redirect(url_for('manager_config', error='El rango debe ser de 1 a 6 meses'))
+        
         from generate_schedule import generate_and_save
-        generate_and_save()
+        generate_and_save(start_year, start_month, end_year, end_month)
         return redirect(url_for('manager_config', success='Schedule generated successfully!'))
     except Exception as e:
         return redirect(url_for('manager_config', error=f'Generation failed: {str(e)}'))
@@ -404,11 +423,18 @@ def calendar_view(year=None, month=None):
     _, last_day = calendar.monthrange(year, month)
     end_date = date(year, month, last_day)
     
-    shifts_query = Shift.query.filter(Shift.date >= start_date, Shift.date <= end_date).all()
+    # Filter shifts based on user role
+    shifts_query = Shift.query.filter(Shift.date >= start_date, Shift.date <= end_date)
+    
+    # Regular users only see their own shifts
+    if current_user.role != 'manager' and current_user.pediatrician_id:
+        shifts_query = shifts_query.filter(Shift.pediatrician_id == current_user.pediatrician_id)
+    
+    shifts_list = shifts_query.all()
     
     # Organize shifts by day
     shifts_by_day = {}
-    for shift in shifts_query:
+    for shift in shifts_list:
         day = shift.date.day
         if day not in shifts_by_day:
             shifts_by_day[day] = []

@@ -193,12 +193,17 @@ def combine_month_with_overlap(year, month, M_overlap, xls, ped_sheets, ped_name
         'no_previous_day_shifts': cur['no_previous_day_shifts']
     }
 
-def generate_and_save():
+def generate_and_save(start_year=2026, start_month=7, end_year=2026, end_month=12):
     with app.app_context():
         CONF = get_config()
-        print("Cleaning existing shifts for 2026 (Jul-Dec)...")
-        start_clean = datetime(2026, 7, 1).date()
-        end_clean = datetime(2026, 12, 31).date()
+        print(f"Cleaning existing shifts for {start_year}/{start_month} to {end_year}/{end_month}...")
+        start_clean = datetime(start_year, start_month, 1).date()
+        # Get last day of end_month
+        if end_month == 12:
+            end_clean = datetime(end_year, 12, 31).date()
+        else:
+            end_clean = (datetime(end_year, end_month + 1, 1) - timedelta(days=1)).date()
+        
         Shift.query.filter(Shift.date >= start_clean, Shift.date <= end_clean).delete()
         db.session.commit()
 
@@ -217,8 +222,12 @@ def generate_and_save():
         cumulative_actual_free = {p: 0.0 for p in pediatricians}
         cumulative_target_free = {p: 0.0 for p in pediatricians}
 
-        for month in range(7, 13):
-            print(f"Generating {datetime(2026, month, 1).strftime('%B %Y')}...")
+        # Calculate month range
+        current_year = start_year
+        current_month = start_month
+        
+        while (current_year < end_year) or (current_year == end_year and current_month <= end_month):
+            print(f"Generating {datetime(current_year, current_month, 1).strftime('%B %Y')}...")
             M_CANDIDATES = list(range(int(CONF['M_START']), int(CONF['M_MIN']) - 1, -1))
             
             used_M = None
@@ -230,7 +239,7 @@ def generate_and_save():
                 if used_M is not None: break
                 
                 for M_try in M_CANDIDATES:
-                    data = combine_month_with_overlap(2026, month, M_try, xls, ped_sheets, ped_names, pediatricians)
+                    data = combine_month_with_overlap(current_year, current_month, M_try, xls, ped_sheets, ped_names, pediatricians)
                     month_days = data['month_days']
                     days_all = data['days_all']
                     mandatory_all = data['mandatory_all']
@@ -405,7 +414,7 @@ def generate_and_save():
                         break
             
             if last_x:
-                print(f"Saving shifts for {datetime(2026, month, 1).strftime('%B %Y')}...")
+                print(f"Saving shifts for {datetime(current_year, current_month, 1).strftime('%B %Y')}...")
                 for p in pediatricians:
                     for d in data['month_days']:
                         if last_x[p, d].varValue == 1:
@@ -430,7 +439,13 @@ def generate_and_save():
                         new_prev_overlap[p] = {d for d in data['overlap_days'] if last_x[p, d].varValue == 1}
                 prev_overlap_mandatory = new_prev_overlap
             else:
-                print(f"FAILED to solve for {datetime(2026, month, 1).strftime('%B %Y')}")
+                print(f"FAILED to solve for {datetime(current_year, current_month, 1).strftime('%B %Y')}")
+            
+            # Increment month
+            current_month += 1
+            if current_month > 12:
+                current_month = 1
+                current_year += 1
 
 if __name__ == '__main__':
     generate_and_save()
