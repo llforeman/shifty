@@ -29,7 +29,8 @@
         box-sizing: border-box;
     }
 
-    input[type="submit"] {
+    input[type="submit"],
+    button[type="submit"] {
         background-color: #3498db;
         color: white;
         padding: 12px 24px;
@@ -40,7 +41,8 @@
         font-size: 16px;
     }
 
-    input[type="submit"]:hover {
+    input[type="submit"]:hover,
+    button[type="submit"]:hover {
         background-color: #2980b9;
     }
 
@@ -53,6 +55,16 @@
         border-bottom: 2px solid #ddd;
         padding-bottom: 10px;
         margin-top: 30px;
+    }
+
+    @keyframes spin {
+        0% {
+            transform: rotate(0deg);
+        }
+
+        100% {
+            transform: rotate(360deg);
+        }
     }
 </style>
 {% endblock %}
@@ -75,8 +87,10 @@
 <div style="background: #e7f3ff; padding: 15px; border-radius: 6px; margin-bottom: 20px; border: 1px solid #b3d9ff;">
     <h3 style="margin-top: 0;">Generar Horario</h3>
     <p>Selecciona el rango de meses (mínimo 1, máximo 6 meses)</p>
-    <form method="POST" action="{{ url_for('generate_schedule_route') }}"
-        onsubmit="return confirm('Esto puede tardar varios minutos. ¿Continuar?');">
+
+    <div id="status-message" style="display: none; padding: 10px; margin-bottom: 15px; border-radius: 4px;"></div>
+
+    <form id="generate-form">
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
             <div>
                 <label for="start_year">Año Inicio:</label>
@@ -103,9 +117,102 @@
                 </select>
             </div>
         </div>
-        <input type="submit" value="Generar Horario" style="background-color: #28a745;">
+        <button type="submit" id="submit-btn" style="background-color: #28a745;">
+            Generar Horario
+        </button>
+        <div id="spinner" style="display: none; margin-top: 10px;">
+            <div
+                style="border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite;">
+            </div>
+        </div>
     </form>
 </div>
+
+<script>
+    document.getElementById('generate-form').addEventListener('submit', async function (e) {
+        e.preventDefault();
+
+        const submitBtn = document.getElementById('submit-btn');
+        const spinner = document.getElementById('spinner');
+        const statusMsg = document.getElementById('status-message');
+
+        // Disable button and show spinner
+        submitBtn.disabled = true;
+        spinner.style.display = 'block';
+        statusMsg.style.display = 'none';
+
+        // Get form data
+        const formData = new FormData(this);
+
+        try {
+            // Submit job
+            const response = await fetch('{{ url_for("generate_schedule_route") }}', {
+                method: 'POST',
+                body: formData
+            });
+
+            const data = await response.json();
+
+            if (data.status === 'queued') {
+                // Show queued message
+                statusMsg.textContent = data.message + ' - Procesando...';
+                statusMsg.style.background = '#fff3cd';
+                statusMsg.style.color = '#856404';
+                statusMsg.style.display = 'block';
+
+                // Start polling for job status
+                pollJobStatus(data.job_id);
+            } else {
+                throw new Error(data.message || 'Unknown error');
+            }
+        } catch (error) {
+            statusMsg.textContent = 'Error: ' + error.message;
+            statusMsg.style.background = '#f8d7da';
+            statusMsg.style.color = '#721c24';
+            statusMsg.style.display = 'block';
+            submitBtn.disabled = false;
+            spinner.style.display = 'none';
+        }
+    });
+
+    function pollJobStatus(jobId) {
+        const statusMsg = document.getElementById('status-message');
+        const submitBtn = document.getElementById('submit-btn');
+        const spinner = document.getElementById('spinner');
+
+        const pollInterval = setInterval(async () => {
+            try {
+                const response = await fetch(`/job_status/${jobId}`);
+                const data = await response.json();
+
+                if (data.status === 'completed') {
+                    clearInterval(pollInterval);
+                    statusMsg.textContent = data.result.message || 'Horario generado exitosamente!';
+                    statusMsg.style.background = '#d4edda';
+                    statusMsg.style.color = '#155724';
+                    submitBtn.disabled = false;
+                    spinner.style.display = 'none';
+                } else if (data.status === 'failed') {
+                    clearInterval(pollInterval);
+                    statusMsg.textContent = 'Error: ' + (data.error || 'Generation failed');
+                    statusMsg.style.background = '#f8d7da';
+                    statusMsg.style.color = '#721c24';
+                    submitBtn.disabled = false;
+                    spinner.style.display = 'none';
+                } else if (data.status === 'running') {
+                    statusMsg.textContent = data.message || 'Generando horario...';
+                }
+            } catch (error) {
+                clearInterval(pollInterval);
+                statusMsg.textContent = 'Error checking job status';
+                statusMsg.style.background = '#f8d7da';
+                statusMsg.style.color = '#721c24';
+                submitBtn.disabled = false;
+                spinner.style.display = 'none';
+            }
+        }, 2000); // Poll every 2 seconds
+    }
+</script>
 
 <p>Aquí puede ajustar las variables que afectan a la lógica de optimización del algoritmo PuLP.</p>
 

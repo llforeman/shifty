@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, abort
+from flask import Flask, render_template, request, redirect, url_for, abort, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -7,6 +7,9 @@ import calendar
 import os
 from dotenv import load_dotenv
 from functools import wraps
+from redis import Redis
+from rq import Queue
+from rq.job import Job
 
 load_dotenv()
 
@@ -21,6 +24,11 @@ app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
     'pool_recycle': 3600,   # Recycle connections after 1 hour
 }
 db = SQLAlchemy(app)
+
+# Redis and RQ configuration
+redis_url = os.getenv('REDIS_URL', 'redis://localhost:6379')
+redis_conn = Redis.from_url(redis_url)
+task_queue = Queue('default', connection=redis_conn)
 
 # Configure session cookies for iframe support (cross-domain)
 app.config['SESSION_COOKIE_SAMESITE'] = 'None'
@@ -383,11 +391,56 @@ def generate_schedule_route():
         if months_diff < 1 or months_diff > 6:
             return redirect(url_for('manager_config', error='El rango debe ser de 1 a 6 meses'))
         
-        from generate_schedule import generate_and_save
-        generate_and_save(start_year, start_month, end_year, end_month)
-        return redirect(url_for('manager_config', success='Schedule generated successfully!'))
+        # Queue the job asynchronously
+        from worker import generate_schedule_task
+        job = task_queue.enqueue(
+            generate_schedule_task,
+            start_year, start_month, end_year, end_month,
+            job_timeout='30m'  # 30 minute timeout for the job
+        )
+        
+        # Return job ID to frontend
+        return jsonify({
+            'status': 'queued',
+            'job_id': job.id,
+            'message': f'Schedule generation started for {start_year}/{start_month} to {end_year}/{end_month}'
+        })
     except Exception as e:
-        return redirect(url_for('manager_config', error=f'Generation failed: {str(e)}'))
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/job_status/<job_id>')
+@login_required
+@role_required('manager')
+def job_status(job_id):
+    """Check the status of an async job"""
+    try:
+        job = Job.fetch(job_id, connection=redis_conn)
+        
+        if job.is_finished:
+            result = job.result
+            return jsonify({
+                'status': 'completed',
+                'result': result
+            })
+        elif job.is_failed:
+            return jsonify({
+                'status': 'failed',
+                'error': str(job.exc_info)
+            })
+        elif job.is_queued:
+            return jsonify({
+                'status': 'queued',
+                'message': 'Job is waiting to start...'
+            })
+        else:  # job.is_started
+            return jsonify({
+                'status': 'running',
+                'message': 'Schedule generation in progress...'
+            })
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 404
+
 
 @app.route('/debug/shifts')
 @login_required

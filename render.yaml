@@ -1,0 +1,41 @@
+services:
+  # Web Service - Flask Application
+  - type: web
+    name: shifty-web
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --timeout 60
+    envVars:
+      - key: SQLALCHEMY_DATABASE_URI
+        sync: false
+      - key: SECRET_KEY
+        sync: false
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: shifty-redis
+          property: connectionString
+
+  # Background Worker - RQ Worker
+  - type: worker
+    name: shifty-worker
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: rq worker --url $REDIS_URL
+    envVars:
+      - key: SQLALCHEMY_DATABASE_URI
+        sync: false
+      - key: SECRET_KEY
+        sync: false
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: shifty-redis
+          property: connectionString
+
+# Redis Service - Job Queue
+databases:
+  - name: shifty-redis
+    type: redis
+    ipAllowList: []
+    plan: free
