@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Shift Scheduling</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        .scheduler-promo {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #ffffff 0%, #f8fafc 50%, #f1f5f9 100%);
+            padding: 120px 20px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .scheduler-promo::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -10%;
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, rgba(59, 130, 246, 0.08) 0%, transparent 70%);
+            border-radius: 50%;
+            animation: pulse 8s ease-in-out infinite;
+        }
+
+        .scheduler-promo::after {
+            content: '';
+            position: absolute;
+            bottom: -30%;
+            left: -5%;
+            width: 500px;
+            height: 500px;
+            background: radial-gradient(circle, rgba(16, 185, 129, 0.05) 0%, transparent 70%);
+            border-radius: 50%;
+            animation: pulse 6s ease-in-out infinite reverse;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                transform: scale(1) translate(0, 0);
+                opacity: 0.3;
+            }
+
+            50% {
+                transform: scale(1.1) translate(-20px, 20px);
+                opacity: 0.5;
+            }
+        }
+
+        .promo-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            position: relative;
+            z-index: 1;
+        }
+
+        .promo-badge {
+            display: inline-block;
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(16, 185, 129, 0.1));
+            border: 1px solid rgba(59, 130, 246, 0.4);
+            color: #2563eb;
+            padding: 10px 24px;
+            border-radius: 50px;
+            font-size: 14px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            margin-bottom: 30px;
+            backdrop-filter: blur(10px);
+            animation: fadeInDown 0.8s ease-out;
+        }
+
+        @keyframes fadeInDown {
+            from {
+                opacity: 0;
+                transform: translateY(-30px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .promo-title {
+            font-size: 56px;
+            font-weight: 800;
+            line-height: 1.2;
+            margin-bottom: 24px;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            animation: fadeInUp 0.8s ease-out 0.2s both;
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .promo-subtitle {
+            font-size: 20px;
+            color: #475569;
+            line-height: 1.6;
+            margin-bottom: 50px;
+            max-width: 800px;
+            animation: fadeInUp 0.8s ease-out 0.4s both;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 30px;
+            margin-top: 60px;
+        }
+
+        .feature-card {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 20px;
+            padding: 40px 30px;
+            backdrop-filter: blur(10px);
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            animation: fadeInUp 0.8s ease-out both;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+        }
+
+        .feature-card:nth-child(1) {
+            animation-delay: 0.5s;
+        }
+
+        .feature-card:nth-child(2) {
+            animation-delay: 0.6s;
+        }
+
+        .feature-card:nth-child(3) {
+            animation-delay: 0.7s;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-10px);
+            background: #ffffff;
+            border-color: #3b82f6;
+            box-shadow: 0 20px 60px rgba(59, 130, 246, 0.2);
+        }
+
+        .feature-icon {
+            width: 60px;
+            height: 60px;
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            margin-bottom: 24px;
+            transition: transform 0.4s ease;
+        }
+
+        .feature-card:hover .feature-icon {
+            transform: scale(1.1) rotate(5deg);
+        }
+
+        .icon-blue {
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.15), rgba(37, 99, 235, 0.15));
+            color: #2563eb;
+        }
+
+        .icon-green {
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(5, 150, 105, 0.15));
+            color: #059669;
+        }
+
+        .icon-purple {
+            background: linear-gradient(135deg, rgba(139, 92, 246, 0.15), rgba(124, 58, 237, 0.15));
+            color: #7c3aed;
+        }
+
+        .feature-title {
+            font-size: 22px;
+            font-weight: 700;
+            color: #0f172a;
+            margin-bottom: 12px;
+        }
+
+        .feature-description {
+            font-size: 15px;
+            color: #475569;
+            line-height: 1.7;
+        }
+
+        .cta-section {
+            margin-top: 70px;
+            text-align: center;
+            animation: fadeInUp 0.8s ease-out 0.8s both;
+        }
+
+        .cta-button {
+            display: inline-block;
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            color: white;
+            padding: 18px 48px;
+            border-radius: 12px;
+            font-size: 18px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            box-shadow: 0 10px 40px rgba(59, 130, 246, 0.3);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .cta-button::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            transition: left 0.5s ease;
+        }
+
+        .cta-button:hover::before {
+            left: 100%;
+        }
+
+        .cta-button:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 15px 50px rgba(59, 130, 246, 0.4);
+        }
+
+        .stats-row {
+            display: flex;
+            justify-content: center;
+            gap: 80px;
+            margin-top: 80px;
+            flex-wrap: wrap;
+            animation: fadeInUp 0.8s ease-out 0.9s both;
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 48px;
+            font-weight: 800;
+            background: linear-gradient(135deg, #3b82f6 0%, #10b981 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 8px;
+        }
+
+        .stat-label {
+            font-size: 16px;
+            color: #475569;
+            font-weight: 500;
+        }
+
+        @media (max-width: 768px) {
+            .promo-title {
+                font-size: 36px;
+            }
+
+            .promo-subtitle {
+                font-size: 18px;
+            }
+
+            .features-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .stats-row {
+                gap: 40px;
+            }
+
+            .stat-number {
+                font-size: 36px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <section class="scheduler-promo">
+        <div class="promo-container">
+            <div class="promo-badge">🚀 Powered by Advanced AI Algorithms</div>
+
+            <h1 class="promo-title">
+                Intelligent Shift Scheduling<br>for Healthcare Excellence
+            </h1>
+
+            <p class="promo-subtitle">
+                Our cutting-edge scheduling platform leverages advanced optimization algorithms to seamlessly calculate
+                and manage shifts for hospitals, clinics, and healthcare organizations. Experience effortless workforce
+                management with unparalleled precision and efficiency.
+            </p>
+
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon icon-blue">🧠</div>
+                    <h3 class="feature-title">Smart Algorithm Engine</h3>
+                    <p class="feature-description">
+                        Advanced computational algorithms analyze thousands of variables simultaneously to generate
+                        optimal shift schedules that balance workload, preferences, and institutional requirements.
+                    </p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon icon-green">⚡</div>
+                    <h3 class="feature-title">Instant Optimization</h3>
+                    <p class="feature-description">
+                        Generate complete monthly schedules in seconds. Our intelligent system ensures fair
+                        distribution,
+                        compliance with labor regulations, and seamless coverage across all departments.
+                    </p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon icon-purple">🏥</div>
+                    <h3 class="feature-title">Healthcare-Focused</h3>
+                    <p class="feature-description">
+                        Specifically designed for hospitals and medical facilities with complex scheduling needs.
+                        Handles specialties, rotations, on-call duties, and emergency coverage with precision.
+                    </p>
+                </div>
+            </div>
+
+            <div class="stats-row">
+                <div class="stat-item">
+                    <div class="stat-number">99.9%</div>
+                    <div class="stat-label">Scheduling Accuracy</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number">10x</div>
+                    <div class="stat-label">Faster Than Manual</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number">100%</div>
+                    <div class="stat-label">Compliance Guaranteed</div>
+                </div>
+            </div>
+
+            <div class="cta-section">
+                <a href="#" class="cta-button">Transform Your Scheduling Today</a>
+            </div>
+        </div>
+    </section>
+</body>
+
+</html>

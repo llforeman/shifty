@@ -64,6 +64,55 @@
     .delete-btn:hover {
         background-color: #c0392b;
     }
+
+    .mode-selector {
+        display: flex;
+        gap: 20px;
+        margin-bottom: 20px;
+    }
+
+    .mode-option {
+        padding: 10px 20px;
+        border: 2px solid #ddd;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.3s;
+    }
+
+    .mode-option:hover {
+        border-color: #3498db;
+        background-color: #f0f8ff;
+    }
+
+    .mode-option.active {
+        border-color: #3498db;
+        background-color: #3498db;
+        color: white;
+    }
+
+    .form-section {
+        display: none;
+    }
+
+    .form-section.active {
+        display: block;
+    }
+
+    .date-range {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 15px;
+    }
+
+    .recurring-badge {
+        display: inline-block;
+        background: #3498db;
+        color: white;
+        padding: 2px 8px;
+        border-radius: 12px;
+        font-size: 12px;
+        margin-left: 8px;
+    }
 </style>
 {% endblock %}
 
@@ -72,12 +121,89 @@
 
 <div style="background: #e8f4f8; padding: 15px; border-radius: 6px; margin-bottom: 20px;">
     <h2 style="margin-top: 0;">Añadir Preferencia</h2>
-    <form method="POST">
-        <label for="req_date">Fecha:</label>
-        <input type="date" id="req_date" name="req_date" required>
+
+    <!-- Mode Selector -->
+    <div class="mode-selector">
+        <div class="mode-option active" onclick="selectMode('specific')">
+            📅 Fecha Específica
+        </div>
+        <div class="mode-option" onclick="selectMode('recurring')">
+            🔄 Día de la Semana (Recurrente)
+        </div>
+    </div>
+
+    <form method="POST" id="preference-form">
+        <input type="hidden" name="preference_mode" id="preference_mode" value="specific">
+
+        <!-- Specific Date Section -->
+        <div id="specific-section" class="form-section active">
+            <label for="req_date">Fecha:</label>
+            <input type="date" id="req_date" name="request_date">
+        </div>
+
+        <!-- Recurring Weekday Section -->
+        <div id="recurring-section" class="form-section">
+            <label for="weekday">Día de la Semana:</label>
+            <select id="weekday" name="weekday">
+                <option value="">Seleccionar día...</option>
+                <option value="monday">Lunes</option>
+                <option value="tuesday">Martes</option>
+                <option value="wednesday">Miércoles</option>
+                <option value="thursday">Jueves</option>
+                <option value="friday">Viernes</option>
+                <option value="saturday">Sábado</option>
+                <option value="sunday">Domingo</option>
+            </select>
+
+            <div class="date-range">
+                <div>
+                    <label for="start_month">Desde (Mes/Año):</label>
+                    <div style="display: flex; gap: 10px;">
+                        <select id="start_month" name="start_month" style="flex: 1;">
+                            <option value="1">Enero</option>
+                            <option value="2">Febrero</option>
+                            <option value="3">Marzo</option>
+                            <option value="4">Abril</option>
+                            <option value="5">Mayo</option>
+                            <option value="6">Junio</option>
+                            <option value="7">Julio</option>
+                            <option value="8">Agosto</option>
+                            <option value="9">Septiembre</option>
+                            <option value="10">Octubre</option>
+                            <option value="11">Noviembre</option>
+                            <option value="12">Diciembre</option>
+                        </select>
+                        <input type="number" id="start_year" name="start_year" placeholder="Año" min="2025" max="2030"
+                            value="2026" style="flex: 1;">
+                    </div>
+                </div>
+
+                <div>
+                    <label for="end_month">Hasta (Mes/Año):</label>
+                    <div style="display: flex; gap: 10px;">
+                        <select id="end_month" name="end_month" style="flex: 1;">
+                            <option value="1">Enero</option>
+                            <option value="2">Febrero</option>
+                            <option value="3">Marzo</option>
+                            <option value="4">Abril</option>
+                            <option value="5">Mayo</option>
+                            <option value="6">Junio</option>
+                            <option value="7">Julio</option>
+                            <option value="8">Agosto</option>
+                            <option value="9">Septiembre</option>
+                            <option value="10">Octubre</option>
+                            <option value="11">Noviembre</option>
+                            <option value="12">Diciembre</option>
+                        </select>
+                        <input type="number" id="end_year" name="end_year" placeholder="Año" min="2025" max="2030"
+                            value="2026" style="flex: 1;">
+                    </div>
+                </div>
+            </div>
+        </div>
 
         <label for="req_type">Tipo de Preferencia:</label>
-        <select id="req_type" name="req_type" required>
+        <select id="req_type" name="request_type" required>
             <option value="Vacation">Vacation (Vacaciones)</option>
             <option value="Skip">Skip (No disponible)</option>
             <option value="Prefer">Prefer (Prefiero trabajar)</option>
@@ -88,8 +214,42 @@
     </form>
 </div>
 
-<h2>Preferencias Guardadas</h2>
-{% if existing_prefs %}
+<!-- Display Recurring Preferences -->
+{% if recurring_prefs %}
+<h2>Preferencias Recurrentes (Día de la Semana)</h2>
+<table>
+    <thead>
+        <tr>
+            <th>Día de la Semana</th>
+            <th>Tipo</th>
+            <th>Rango</th>
+            <th>Cantidad</th>
+            <th>Acción</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for pref in recurring_prefs %}
+        <tr>
+            <td><strong>{{ pref.weekday }}</strong></td>
+            <td>{{ pref.type }}</td>
+            <td>{{ pref.start_date.strftime('%b %Y') }} - {{ pref.end_date.strftime('%b %Y') }}</td>
+            <td><span class="recurring-badge">{{ pref.count }} días</span></td>
+            <td>
+                <form method="POST" style="display: inline;">
+                    <input type="hidden" name="delete_recurring_group" value="{{ pref.group_id }}">
+                    <button type="submit" class="delete-btn"
+                        onclick="return confirm('¿Eliminar todas las {{ pref.count }} preferencias de {{ pref.weekday }}?')">Eliminar</button>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endif %}
+
+<!-- Display Individual Preferences -->
+<h2>Preferencias Individuales</h2>
+{% if individual_prefs %}
 <table>
     <thead>
         <tr>
@@ -99,14 +259,15 @@
         </tr>
     </thead>
     <tbody>
-        {% for pref in existing_prefs %}
+        {% for pref in individual_prefs %}
         <tr>
             <td>{{ pref.date.strftime('%Y-%m-%d') }}</td>
             <td>{{ pref.type }}</td>
             <td>
                 <form method="POST" style="display: inline;">
-                    <input type="hidden" name="req_date" value="{{ pref.date.strftime('%Y-%m-%d') }}">
-                    <input type="hidden" name="req_type" value="Delete">
+                    <input type="hidden" name="preference_mode" value="specific">
+                    <input type="hidden" name="request_date" value="{{ pref.date.strftime('%Y-%m-%d') }}">
+                    <input type="hidden" name="request_type" value="Delete">
                     <button type="submit" class="delete-btn">Eliminar</button>
                 </form>
             </td>
@@ -115,6 +276,31 @@
     </tbody>
 </table>
 {% else %}
-<p style="color: #999; font-style: italic;">No hay preferencias guardadas.</p>
+<p style="color: #999; font-style: italic;">No hay preferencias individuales guardadas.</p>
 {% endif %}
+
+<script>
+    function selectMode(mode) {
+        // Update UI
+        document.querySelectorAll('.mode-option').forEach(el => el.classList.remove('active'));
+        event.target.classList.add('active');
+
+        // Update hidden field
+        document.getElementById('preference_mode').value = mode;
+
+        // Show/hide sections
+        document.querySelectorAll('.form-section').forEach(el => el.classList.remove('active'));
+        document.getElementById(mode + '-section').classList.add('active');
+
+        // Update required fields
+        if (mode === 'specific') {
+            document.getElementById('req_date').required = true;
+            document.getElementById('weekday').required = false;
+        } else {
+            document.getElementById('req_date').required = false;
+            document.getElementById('weekday').required = true;
+        }
+    }
+</script>
+
 {% endblock %}

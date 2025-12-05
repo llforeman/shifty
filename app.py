@@ -97,6 +97,8 @@ class Preference(db.Model):
     date = db.Column(db.Date, nullable=False)
     # Stores the type of request: 'Vacation', 'Skip', 'Prefer Not', 'Prefer'
     type = db.Column(db.String(50), nullable=False)
+    # For recurring preferences: e.g., "tuesday_prefernot_202601_202606" (null for individual dates)
+    recurring_group = db.Column(db.String(150), nullable=True)
     
     # Constraint: A pediatrician can only have one request per date
     __table_args__ = (db.UniqueConstraint('pediatrician_id', 'date', name='_ped_date_uc'),)
@@ -203,6 +205,46 @@ with app.app_context():
 
 
 
+# Helper function to expand weekday to all dates in a range
+def expand_weekday_to_dates(weekday_name, start_month, start_year, end_month, end_year):
+    """
+    Expand a weekday (e.g., 'Monday') to all dates of that weekday within the given month range.
+    Returns list of date objects.
+    """
+    from datetime import timedelta
+    
+    weekday_map = {
+        'monday': 0, 'tuesday': 1, 'wednesday': 2, 'thursday': 3,
+        'friday': 4, 'saturday': 5, 'sunday': 6
+    }
+    
+    weekday_num = weekday_map.get(weekday_name.lower())
+    if weekday_num is None:
+        return []
+    
+    dates = []
+    start_date = date(start_year, start_month, 1)
+    
+    # Calculate end date (last day of end month)
+    if end_month == 12:
+        end_date = date(end_year, 12, 31)
+    else:
+        end_date = date(end_year, end_month + 1, 1) - timedelta(days=1)
+    
+    # Find first occurrence of the weekday
+    current = start_date
+    while current.weekday() != weekday_num:
+        current += timedelta(days=1)
+        if current > end_date:
+            return dates
+    
+    # Collect all dates of this weekday in range
+    while current <= end_date:
+        dates.append(current)
+        current += timedelta(days=7)
+    
+    return dates
+
 # -----------------
 # 3. WEB ROUTES (The logic that serves the pages)
 # -----------------
@@ -218,42 +260,138 @@ def preferences_page(ped_id):
     pediatrician = db.get_or_404(Pediatrician, ped_id)
     
     if request.method == 'POST':
-        req_date_str = request.form.get('request_date')
+        preference_mode = request.form.get('preference_mode')  # 'specific' or 'recurring'
         req_type = request.form.get('request_type')
+        
+        # Handle deletion of recurring group
+        if request.form.get('delete_recurring_group'):
+            recurring_group = request.form.get('delete_recurring_group')
+            Preference.query.filter_by(
+                pediatrician_id=ped_id,
+                recurring_group=recurring_group
+            ).delete()
+            db.session.commit()
+            return redirect(url_for('preferences_page', ped_id=ped_id))
+        
+        # Handle specific date preference
+        if preference_mode == 'specific':
+            req_date_str = request.form.get('request_date')
+            
+            if req_date_str and req_type:
+                try:
+                    req_date = date.fromisoformat(req_date_str)
+                    
+                    existing_entry = Preference.query.filter_by(
+                        pediatrician_id=ped_id, date=req_date
+                    ).first()
 
-        if req_date_str and req_type:
-            try:
-                # Convert string to Python date object
-                req_date = date.fromisoformat(req_date_str)
+                    if req_type == 'Delete':
+                        if existing_entry:
+                            db.session.delete(existing_entry)
+                    elif existing_entry:
+                        existing_entry.type = req_type
+                        existing_entry.recurring_group = None  # Clear any recurring group
+                    else:
+                        new_pref = Preference(
+                            pediatrician_id=ped_id, 
+                            date=req_date, 
+                            type=req_type,
+                            recurring_group=None
+                        )
+                        db.session.add(new_pref)
+                    
+                    db.session.commit()
+                    return redirect(url_for('preferences_page', ped_id=ped_id))
+                except ValueError as e:
+                    print(f"Error processing date: {e}")
+        
+        # Handle recurring weekday preference
+        elif preference_mode == 'recurring':
+            weekday = request.form.get('weekday')
+            start_month = request.form.get('start_month')
+            start_year = request.form.get('start_year')
+            end_month = request.form.get('end_month')
+            end_year = request.form.get('end_year')
+            
+            if weekday and start_month and start_year and end_month and end_year and req_type:
+                try:
+                    # Generate recurring group identifier
+                    recurring_group = f"{weekday.lower()}_{req_type.replace(' ', '').lower()}_{start_year}{start_month.zfill(2)}_{end_year}{end_month.zfill(2)}"
+                    
+                    # Expand weekday to all dates
+                    dates_to_add = expand_weekday_to_dates(
+                        weekday, 
+                        int(start_month), int(start_year),
+                        int(end_month), int(end_year)
+                    )
+                    
+                    # Add all dates with the same recurring_group
+                    for pref_date in dates_to_add:
+                        # Check if preference already exists for this date
+                        existing = Preference.query.filter_by(
+                            pediatrician_id=ped_id,
+                            date=pref_date
+                        ).first()
+                        
+                        if not existing:
+                            new_pref = Preference(
+                                pediatrician_id=ped_id,
+                                date=pref_date,
+                                type=req_type,
+                                recurring_group=recurring_group
+                            )
+                            db.session.add(new_pref)
+                    
+                    db.session.commit()
+                    return redirect(url_for('preferences_page', ped_id=ped_id))
+                except Exception as e:
+                    print(f"Error processing recurring preference: {e}")
+                    db.session.rollback()
                 
-                # Check for existing preference for update/delete
-                existing_entry = Preference.query.filter_by(
-                    pediatrician_id=ped_id, date=req_date
-                ).first()
-
-                if req_type == 'Delete':
-                    if existing_entry:
-                        db.session.delete(existing_entry)
-                elif existing_entry:
-                    existing_entry.type = req_type
-                else:
-                    new_pref = Preference(pediatrician_id=ped_id, date=req_date, type=req_type)
-                    db.session.add(new_pref)
-                
-                db.session.commit()
-                return redirect(url_for('preferences_page', ped_id=ped_id))
-
-            except ValueError as e:
-                print(f"Error processing date: {e}")
-                # In a real app, you'd show an error message to the user
-                
-    # Fetch all current preferences to display on the page
-    existing_prefs = Preference.query.filter_by(pediatrician_id=ped_id).order_by(Preference.date).all()
+    # Fetch and group preferences for display
+    all_prefs = Preference.query.filter_by(pediatrician_id=ped_id).order_by(Preference.date).all()
+    
+    # Separate individual and recurring preferences
+    individual_prefs = [p for p in all_prefs if p.recurring_group is None]
+    
+    # Group recurring preferences
+    recurring_groups = {}
+    for pref in all_prefs:
+        if pref.recurring_group:
+            if pref.recurring_group not in recurring_groups:
+                recurring_groups[pref.recurring_group] = []
+            recurring_groups[pref.recurring_group].append(pref)
+    
+    # Format recurring groups for display
+    formatted_recurring = []
+    for group_id, prefs in recurring_groups.items():
+        if prefs:
+            # Parse group_id to extract info
+            # Format: "monday_prefernot_202601_202606"
+            parts = group_id.split('_')
+            weekday = parts[0].capitalize() if parts else "Unknown"
+            
+            # Map Spanish weekday names
+            weekday_spanish = {
+                'Monday': 'Lunes', 'Tuesday': 'Martes', 'Wednesday': 'Miércoles',
+                'Thursday': 'Jueves', 'Friday': 'Viernes', 'Saturday': 'Sábado', 'Sunday': 'Domingo'
+            }
+            weekday_display = weekday_spanish.get(weekday, weekday)
+            
+            formatted_recurring.append({
+                'group_id': group_id,
+                'weekday': weekday_display,
+                'type': prefs[0].type,
+                'count': len(prefs),
+                'start_date': min(p.date for p in prefs),
+                'end_date': max(p.date for p in prefs)
+            })
         
     return render_template(
         'preferences_form.html',
         pediatrician=pediatrician,
-        existing_prefs=existing_prefs
+        individual_prefs=individual_prefs,
+        recurring_prefs=formatted_recurring
     )
 
 @app.route('/login', methods=['GET', 'POST'])
