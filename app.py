@@ -30,10 +30,19 @@ redis_url = os.getenv('REDIS_URL', 'redis://localhost:6379')
 redis_conn = Redis.from_url(redis_url)
 task_queue = Queue('default', connection=redis_conn)
 
-# Configure session cookies for iframe support (cross-domain)
-app.config['SESSION_COOKIE_SAMESITE'] = 'None'
-app.config['SESSION_COOKIE_SECURE'] = True  # Required when SameSite=None
+# Configure session cookies
+# In production (HTTPS), use secure cookies for iframe support
+# In development (HTTP), use standard cookies
+if os.getenv('ENVIRONMENT') == 'production':
+    app.config['SESSION_COOKIE_SAMESITE'] = 'None'
+    app.config['SESSION_COOKIE_SECURE'] = True  # Required when SameSite=None
+else:
+    # Development/local: use standard session cookies
+    app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+    app.config['SESSION_COOKIE_SECURE'] = False
+    
 app.config['SESSION_COOKIE_HTTPONLY'] = True  # Security best practice
+app.config['PERMANENT_SESSION_LIFETIME'] = 86400  # 24 hours
 
 login_manager = LoginManager()
 login_manager.init_app(app)
