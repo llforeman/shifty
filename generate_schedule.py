@@ -429,6 +429,9 @@ def generate_and_save(start_year=2026, start_month=7, end_year=2026, end_month=1
                         break
             
             if last_x:
+                month_str = datetime(current_year, current_month, 1).strftime('%B %Y')
+                logger.info(f"Saving shifts for {month_str}...")
+                
                 # Completely remove the session and dispose the connection pool after long solve
                 # This ensures we get a brand new session with fresh connections
                 db.session.remove()  # Remove the scoped session completely
