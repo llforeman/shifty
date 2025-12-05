@@ -417,7 +417,7 @@ def login():
         user = User.query.filter_by(username=username).first()
 
         if user and user.check_password(password):
-            login_user(user)
+            login_user(user, remember=True)
             next_page = request.args.get('next')
             
             
@@ -454,7 +454,7 @@ def register():
         db.session.add(new_user)
         db.session.commit()
         
-        login_user(new_user)
+        login_user(new_user, remember=True)
         return redirect(url_for('profile')) # Redirect to profile to see status
         
     return render_template('register.html')
