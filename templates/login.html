@@ -84,7 +84,7 @@
         <div class="error">{{ error }}</div>
         {% endif %}
 
-        <form method="POST">
+        <form method="POST" action="{{ url_for('login') }}">
             <label for="username">Usuario:</label>
             <input type="text" id="username" name="username" required autofocus>
 
