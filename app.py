@@ -31,11 +31,18 @@ redis_conn = Redis.from_url(redis_url)
 task_queue = Queue('default', connection=redis_conn)
 
 # Configure session cookies
-# In production (HTTPS), use secure cookies for iframe support
-# In development (HTTP), use standard cookies
-if os.getenv('ENVIRONMENT') == 'production':
-    app.config['SESSION_COOKIE_SAMESITE'] = 'None'
-    app.config['SESSION_COOKIE_SECURE'] = True  # Required when SameSite=None
+# Always use secure cookies in production (Render uses HTTPS)
+# The ENVIRONMENT variable might not be set, so we also check for typical production indicators
+is_production = (
+    os.getenv('ENVIRONMENT') == 'production' or 
+    os.getenv('RENDER') == 'true' or  # Render sets this automatically
+    os.getenv('SQLALCHEMY_DATABASE_URI', '').startswith('mysql://')  # Production DB
+)
+
+if is_production:
+    # Production: Use Lax instead of None to avoid third-party cookie issues
+    app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+    app.config['SESSION_COOKIE_SECURE'] = True  # Required for HTTPS
 else:
     # Development/local: use standard session cookies
     app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
