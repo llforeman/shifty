@@ -203,15 +203,7 @@ def generate_and_save(start_year=2026, start_month=7, end_year=2026, end_month=1
         logger.info(f"Starting schedule generation for {start_year}/{start_month} to {end_year}/{end_month}")
         CONF = get_config()
         
-        # Explicitly clear shifts first
-        logger.info("Clearing all existing shifts...")
-        try:
-            num_deleted = db.session.query(Shift).delete()
-            db.session.commit()
-            logger.info(f"Deleted {num_deleted} existing shifts.")
-        except Exception as e:
-            logger.error(f"Error clearing shifts: {e}")
-            db.session.rollback()
+        # Only clear shifts in the target date range
 
         logger.info(f"Cleaning existing shifts for {start_year}/{start_month} to {end_year}/{end_month}...")
         start_clean = datetime(start_year, start_month, 1).date()
@@ -419,8 +411,9 @@ def generate_and_save(start_year=2026, start_month=7, end_year=2026, end_month=1
                                 prob += x[resident, d] + x[non_mir, d] <= 1
                         prob += lpSum(x[p, d] for p in residents) <= 1
 
-                    # Note: We rely on pool_pre_ping to handle stale connections
-                    # Instead of closing, we'll refresh the session after solving
+                    # Dispose of the connection pool to force reconnection after long solve
+                    # This prevents "MySQL server has gone away" errors
+                    db.engine.dispose()
                     
                     prob.solve()
                     if LpStatus[prob.status] == 'Optimal':
