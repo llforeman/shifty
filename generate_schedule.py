@@ -1,3 +1,19 @@
+from flask_sqlalchemy import SQLAlchemy
+from datetime import datetime, timedelta, date
+import pandas as pd
+from pulp import LpProblem, LpVariable, LpMinimize, LpStatus, LpBinary, lpSum, value
+import logging
+
+from app import app, db, Shift, Pediatrician, Preference, GlobalConfig
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# --- CONFIGURATION ---
+def get_config():
+    defaults = {
+        'S1': 2, 'S2': 2, 'M_START': 3, 'M_MIN': 1,
         'BALANCE_ALPHA': 1.0, 'USE_LEXICOGRAPHIC_FAIRNESS': True,
         'PENALTY_PREFER_NOT_DAY': 10, 'PENALTY_MISS_PREFERRED_DAY': 8,
         'PENALTY_EXCESS_WEEKLY_SHIFTS': 5, 'PENALTY_REPEATED_WEEKDAY': 30,
