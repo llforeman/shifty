@@ -21,7 +21,7 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 # Prevent MySQL "server has gone away" errors
 app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
     'pool_pre_ping': True,  # Test connections before using them
-    'pool_recycle': 3600,   # Recycle connections after 1 hour
+    'pool_recycle': 900,    # Recycle connections after 15 min (< MySQL wait_timeout)
 }
 db = SQLAlchemy(app)
 

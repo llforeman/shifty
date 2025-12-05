@@ -232,6 +232,10 @@ def generate_and_save(start_year=2026, start_month=7, end_year=2026, end_month=1
         cumulative_actual_free = {p: 0.0 for p in pediatricians}
         cumulative_target_free = {p: 0.0 for p in pediatricians}
 
+        # Drop the session after initial setup to avoid holding connections during long solves
+        logger.info("Clearing session before entering solve loop...")
+        db.session.remove()
+        
         # Calculate month range
         current_year = start_year
         current_month = start_month
