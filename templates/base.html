@@ -21,36 +21,44 @@
 
         .sidebar {
             width: 250px;
-            background: #2c3e50;
-            color: #ecf0f1;
+            background: #081ACA;
+            color: #ffffff;
             padding: 20px 0;
             position: fixed;
             height: 100vh;
             overflow-y: auto;
         }
 
-        .sidebar h2 {
+        .sidebar-logo {
             padding: 0 20px 20px 20px;
-            border-bottom: 1px solid #34495e;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
             margin-bottom: 20px;
-            color: #3498db;
+            text-align: center;
+        }
+
+        .sidebar-logo img {
+            width: 100%;
+            height: auto;
+            max-width: 200px;
+            display: block;
+            margin: 0 auto;
         }
 
         .sidebar a {
             display: block;
             padding: 15px 20px;
-            color: #ecf0f1;
+            color: #ffffff;
             text-decoration: none;
             transition: background 0.3s;
         }
 
         .sidebar a:hover {
-            background: #34495e;
+            background: rgba(255, 255, 255, 0.15);
         }
 
         .sidebar a.active {
-            background: #3498db;
-            border-left: 4px solid #2980b9;
+            background: rgba(255, 255, 255, 0.25);
+            border-left: 4px solid #ffffff;
         }
 
         .logout-btn {
@@ -116,7 +124,10 @@
 
 <body>
     <div class="sidebar">
-        <h2>Shifty</h2>
+        <div class="sidebar-logo">
+            <img src="https://xifty.org/wp-content/uploads/2025/12/xiftysource-2-scaled-e1764940077110.png"
+                alt="Shifty Logo">
+        </div>
         <a href="{{ url_for('profile') }}" class="{% if request.endpoint == 'profile' %}active{% endif %}">
             👤 Perfil
         </a>
