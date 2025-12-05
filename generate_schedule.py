@@ -411,10 +411,7 @@ def generate_and_save(start_year=2026, start_month=7, end_year=2026, end_month=1
                                 prob += x[resident, d] + x[non_mir, d] <= 1
                         prob += lpSum(x[p, d] for p in residents) <= 1
 
-                    # Dispose of the connection pool to force reconnection after long solve
-                    # This prevents "MySQL server has gone away" errors
-                    db.engine.dispose()
-                    
+
                     prob.solve()
                     if LpStatus[prob.status] == 'Optimal':
                         if CONF['USE_LEXICOGRAPHIC_FAIRNESS']:
@@ -430,6 +427,10 @@ def generate_and_save(start_year=2026, start_month=7, end_year=2026, end_month=1
             if last_x:
                 month_str = datetime(current_year, current_month, 1).strftime('%B %Y')
                 logger.info(f"Saving shifts for {month_str}...")
+                
+                # Dispose of the connection pool after long solve to get fresh connections
+                # This prevents "MySQL server has gone away" errors during database writes
+                db.engine.dispose()
                 
                 # Refresh the session to ensure we have a fresh connection
                 db.session.rollback()  # Clear any pending state
