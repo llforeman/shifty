@@ -1,14 +1,3 @@
-import numpy as np
-import pandas as pd
-from datetime import datetime, timedelta
-from pulp import LpProblem, LpVariable, LpMinimize, LpStatus, LpBinary, lpSum, value
-import os
-from app import app, db, Shift, Pediatrician, Preference, GlobalConfig
-
-# --- CONFIGURATION ---
-def get_config():
-    defaults = {
-        'S1': 2, 'S2': 2, 'M_START': 3, 'M_MIN': 1,
         'BALANCE_ALPHA': 1.0, 'USE_LEXICOGRAPHIC_FAIRNESS': True,
         'PENALTY_PREFER_NOT_DAY': 10, 'PENALTY_MISS_PREFERRED_DAY': 8,
         'PENALTY_EXCESS_WEEKLY_SHIFTS': 5, 'PENALTY_REPEATED_WEEKDAY': 30,
@@ -195,8 +184,20 @@ def combine_month_with_overlap(year, month, M_overlap, xls, ped_sheets, ped_name
 
 def generate_and_save(start_year=2026, start_month=7, end_year=2026, end_month=12):
     with app.app_context():
+        logger.info(f"Starting schedule generation for {start_year}/{start_month} to {end_year}/{end_month}")
         CONF = get_config()
-        print(f"Cleaning existing shifts for {start_year}/{start_month} to {end_year}/{end_month}...")
+        
+        # Explicitly clear shifts first
+        logger.info("Clearing all existing shifts...")
+        try:
+            num_deleted = db.session.query(Shift).delete()
+            db.session.commit()
+            logger.info(f"Deleted {num_deleted} existing shifts.")
+        except Exception as e:
+            logger.error(f"Error clearing shifts: {e}")
+            db.session.rollback()
+
+        logger.info(f"Cleaning existing shifts for {start_year}/{start_month} to {end_year}/{end_month}...")
         start_clean = datetime(start_year, start_month, 1).date()
         # Get last day of end_month
         if end_month == 12:
@@ -214,7 +215,8 @@ def generate_and_save(start_year=2026, start_month=7, end_year=2026, end_month=1
         
         # Ensure Peds exist
         for pid, name in ped_names.items():
-            if not Pediatrician.query.get(pid):
+            if not db.session.get(Pediatrician, pid):
+                print(f"Adding missing pediatrician: {name} (ID={pid})")
                 db.session.add(Pediatrician(id=pid, name=name))
                 db.session.commit()
 
@@ -401,6 +403,9 @@ def generate_and_save(start_year=2026, start_month=7, end_year=2026, end_month=1
                                 prob += x[resident, d] + x[non_mir, d] <= 1
                         prob += lpSum(x[p, d] for p in residents) <= 1
 
+                    # Note: We rely on pool_pre_ping to handle stale connections
+                    # Instead of closing, we'll refresh the session after solving
+                    
                     prob.solve()
                     if LpStatus[prob.status] == 'Optimal':
                         if CONF['USE_LEXICOGRAPHIC_FAIRNESS']:
@@ -414,12 +419,40 @@ def generate_and_save(start_year=2026, start_month=7, end_year=2026, end_month=1
                         break
             
             if last_x:
-                print(f"Saving shifts for {datetime(current_year, current_month, 1).strftime('%B %Y')}...")
+                month_str = datetime(current_year, current_month, 1).strftime('%B %Y')
+                logger.info(f"Saving shifts for {month_str}...")
+                
+                # Refresh the session to ensure we have a fresh connection
+                db.session.rollback()  # Clear any pending state
+                
+                shifts_to_add = []
                 for p in pediatricians:
                     for d in data['month_days']:
                         if last_x[p, d].varValue == 1:
-                            db.session.add(Shift(pediatrician_id=p, date=d))
-                db.session.commit()
+                            shifts_to_add.append(Shift(pediatrician_id=p, date=d))
+                
+                logger.info(f"Attempting to add {len(shifts_to_add)} shifts for {month_str}...")
+                
+                # Check for duplicates in shifts_to_add
+                seen = set()
+                for s in shifts_to_add:
+                    key = (s.pediatrician_id, s.date)
+                    if key in seen:
+                        logger.warning(f"DUPLICATE IN MEMORY: {key}")
+                    seen.add(key)
+                
+                try:
+                    db.session.add_all(shifts_to_add)
+                    db.session.commit()
+                    logger.info(f"Successfully saved {len(shifts_to_add)} shifts for {month_str}")
+                except Exception as e:
+                    logger.error(f"!!! ERROR SAVING SHIFTS FOR {month_str} !!!")
+                    logger.error(f"Exception type: {type(e).__name__}")
+                    logger.error(f"Exception message: {str(e)[:500]}")
+                    if hasattr(e, 'orig'):
+                        logger.error(f"Original error: {e.orig}")
+                    db.session.rollback()
+                    return # Stop on error
                 
                 # Update trackers
                 for p in pediatricians:
@@ -446,6 +479,13 @@ def generate_and_save(start_year=2026, start_month=7, end_year=2026, end_month=1
             if current_month > 12:
                 current_month = 1
                 current_year += 1
+        
+        logger.info("Schedule generation completed successfully!")
 
 if __name__ == '__main__':
-    generate_and_save()
+    try:
+        generate_and_save()
+    except Exception as e:
+        logger.error("Fatal error during schedule generation:")
+        import traceback
+        traceback.print_exc()
