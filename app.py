@@ -112,6 +112,9 @@ class Shift(db.Model):
     date = db.Column(db.Date, nullable=False)
     type = db.Column(db.String(50), default='Shift') # 'Shift', 'Guardia', etc.
     
+    # Relationship to access the pediatrician
+    pediatrician = db.relationship('Pediatrician', backref='shifts', lazy=True)
+    
     # Constraint: A pediatrician can only have one shift per date (usually)
     __table_args__ = (db.UniqueConstraint('pediatrician_id', 'date', name='_ped_shift_uc'),)
 
