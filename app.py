@@ -40,9 +40,10 @@ is_production = (
 )
 
 if is_production:
-    # Production: Use Lax instead of None to avoid third-party cookie issues
+    # TEMPORARY: Disable SECURE flag for debugging (as suggested by developer)
     app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
-    app.config['SESSION_COOKIE_SECURE'] = True  # Required for HTTPS
+    app.config['SESSION_COOKIE_SECURE'] = False  # TODO: Set back to True once working
+    print("[DEBUG] Production mode detected - using SECURE=False for debugging")
 else:
     # Development/local: use standard session cookies
     app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
@@ -106,7 +107,10 @@ class User(UserMixin, db.Model):
 
 @login_manager.user_loader
 def load_user(user_id):
-    return User.query.get(int(user_id))
+    print(f"[DEBUG] user_loader called with ID: {user_id}")
+    user = db.session.get(User, int(user_id))
+    print(f"[DEBUG] user_loader found: {user}")
+    return user
 
 class Preference(db.Model):
     __tablename__ = 'preference'
@@ -415,8 +419,13 @@ def preferences_page(ped_id):
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    from flask import session as flask_session
+    print(f"[DEBUG] /login - Before login, session: {dict(flask_session)}")
+    print(f"[DEBUG] /login - is_authenticated: {current_user.is_authenticated}")
+    
     if current_user.is_authenticated:
-        return redirect(url_for('manager_config'))
+        # Fixed: Send all users to profile, not just managers
+        return redirect(url_for('profile'))
         
     if request.method == 'POST':
         username = request.form.get('username')
@@ -424,9 +433,11 @@ def login():
         user = User.query.filter_by(username=username).first()
 
         if user and user.check_password(password):
+            print(f"[DEBUG] /login - Login successful for user: {username}")
             login_user(user, remember=True)
+            print(f"[DEBUG] /login - After login_user, session: {dict(flask_session)}")
+            print(f"[DEBUG] /login - After login_user, is_authenticated: {current_user.is_authenticated}")
             next_page = request.args.get('next')
-            
             
             if next_page:
                 return redirect(next_page)
@@ -434,7 +445,7 @@ def login():
             # All users go to profile page after login
             return redirect(url_for('profile'))
         
-        
+        print(f"[DEBUG] /login - Login failed for user: {username}")
         return render_template('login.html', error='Usuario o contraseña inválidos')
 
     return render_template('login.html')
@@ -469,6 +480,11 @@ def register():
 @app.route('/profile', methods=['GET', 'POST'])
 @login_required
 def profile():
+    from flask import session as flask_session
+    print(f"[DEBUG] /profile - is_authenticated: {current_user.is_authenticated}")
+    print(f"[DEBUG] /profile - session: {dict(flask_session)}")
+    print(f"[DEBUG] /profile - current_user: {current_user}")
+    
     msg = None
     msg_category = ''
     
@@ -617,6 +633,7 @@ def debug_shifts():
 
 @app.route('/calendar')
 @app.route('/calendar/<int:year>/<int:month>')
+@login_required
 def calendar_view(year=None, month=None):
     if year is None or month is None:
         today = date.today()
