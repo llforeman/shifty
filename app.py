@@ -40,10 +40,12 @@ is_production = (
 )
 
 if is_production:
-    # TEMPORARY: Disable SECURE flag for debugging (as suggested by developer)
-    app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
-    app.config['SESSION_COOKIE_SECURE'] = False  # TODO: Set back to True once working
-    print("[DEBUG] Production mode detected - using SECURE=False for debugging")
+    # Cross-domain cookie support: Required when app is embedded or accessed from different domain
+    # SameSite=None allows cookies to be sent cross-site (xifty.org -> shifty.onrender.com)
+    # Secure=True is required when using SameSite=None (HTTPS only)
+    app.config['SESSION_COOKIE_SAMESITE'] = 'None'
+    app.config['SESSION_COOKIE_SECURE'] = True
+    print("[DEBUG] Production mode - using SameSite=None for cross-domain cookie support")
 else:
     # Development/local: use standard session cookies
     app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
