@@ -425,15 +425,10 @@ def generate_and_save(start_year=2026, start_month=7, end_year=2026, end_month=1
                         break
             
             if last_x:
-                month_str = datetime(current_year, current_month, 1).strftime('%B %Y')
-                logger.info(f"Saving shifts for {month_str}...")
-                
-                # Dispose of the connection pool after long solve to get fresh connections
-                # This prevents "MySQL server has gone away" errors during database writes
-                db.engine.dispose()
-                
-                # Refresh the session to ensure we have a fresh connection
-                db.session.rollback()  # Clear any pending state
+                # Completely remove the session and dispose the connection pool after long solve
+                # This ensures we get a brand new session with fresh connections
+                db.session.remove()  # Remove the scoped session completely
+                db.engine.dispose()   # Dispose all connections in the pool
                 
                 shifts_to_add = []
                 for p in pediatricians:
@@ -462,7 +457,7 @@ def generate_and_save(start_year=2026, start_month=7, end_year=2026, end_month=1
                     if hasattr(e, 'orig'):
                         logger.error(f"Original error: {e.orig}")
                     db.session.rollback()
-                    return # Stop on error
+                    raise  # Re-raise the exception so worker.py can catch it
                 
                 # Update trackers
                 for p in pediatricians:
