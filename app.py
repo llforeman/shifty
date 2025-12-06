@@ -229,6 +229,36 @@ class ChatMessage(db.Model):
             'is_me': (self.user_id == current_user.id)
         }
 
+class Activity(db.Model):
+    __tablename__ = 'activity'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    name = db.Column(db.String(100), nullable=False)
+    place = db.Column(db.String(200))
+    start_time = db.Column(db.DateTime, nullable=False)
+    end_time = db.Column(db.DateTime, nullable=False)
+    recurrence_type = db.Column(db.String(20), default='once')  # 'once' or 'weekly'
+    recurrence_day = db.Column(db.Integer)  # 0-6 for Mon-Sun, null if 'once'
+    recurrence_end_date = db.Column(db.Date)  # When to stop recurring
+    
+    user = db.relationship('User', backref='activities')
+    
+    def __repr__(self):
+        return f"<Activity {self.name} for User {self.user_id}>"
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'place': self.place,
+            'start_time': self.start_time.strftime('%Y-%m-%d %H:%M:%S'),
+            'end_time': self.end_time.strftime('%Y-%m-%d %H:%M:%S'),
+            'recurrence_type': self.recurrence_type,
+            'recurrence_day': self.recurrence_day,
+            'recurrence_end_date': self.recurrence_end_date.strftime('%Y-%m-%d') if self.recurrence_end_date else None
+        }
+
 @app.route('/chat')
 @login_required
 def chat_page():
@@ -270,6 +300,59 @@ def post_message():
     db.session.commit()
     
     return jsonify({'status': 'success', 'message': 'Sent'})
+
+@app.route('/activities')
+@login_required
+def activities_page():
+    # Only show user's own activities + recurring logic will be handled in calendar
+    activities = Activity.query.filter_by(user_id=current_user.id).order_by(Activity.start_time).all()
+    return render_template('activities.html', activities=activities)
+
+@app.route('/activities/add', methods=['POST'])
+@login_required
+def add_activity():
+    name = request.form.get('name')
+    place = request.form.get('place')
+    start_time_str = request.form.get('start_time') # "2023-10-30T09:00"
+    end_time_str = request.form.get('end_time')
+    recurrence_type = request.form.get('recurrence_type')
+    
+    if not name or not start_time_str or not end_time_str:
+        return "Missing fields", 400
+        
+    start_time = datetime.fromisoformat(start_time_str)
+    end_time = datetime.fromisoformat(end_time_str)
+    
+    recurrence_day = None
+    recurrence_end_date = None
+    
+    if recurrence_type == 'weekly':
+        recurrence_day = start_time.weekday() # 0=Monday
+        recurrence_end_str = request.form.get('recurrence_end_date')
+        if recurrence_end_str:
+            recurrence_end_date = datetime.strptime(recurrence_end_str, '%Y-%m-%d').date()
+            
+    activity = Activity(
+        user_id=current_user.id,
+        name=name,
+        place=place,
+        start_time=start_time,
+        end_time=end_time,
+        recurrence_type=recurrence_type,
+        recurrence_day=recurrence_day,
+        recurrence_end_date=recurrence_end_date
+    )
+    db.session.add(activity)
+    db.session.commit()
+    return redirect(url_for('activities_page'))
+
+@app.route('/activities/delete/<int:id>', methods=['POST'])
+@login_required
+def delete_activity(id):
+    activity = Activity.query.filter_by(id=id, user_id=current_user.id).first_or_404()
+    db.session.delete(activity)
+    db.session.commit()
+    return redirect(url_for('activities_page'))
 
 # -----------------
 # 2. DATABASE INITIALIZATION (Run this once to create tables)

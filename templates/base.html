@@ -122,46 +122,7 @@
     {% block extra_styles %}{% endblock %}
 </head>
 
-<body>
-    <div class="sidebar">
-        <div class="sidebar-logo">
-            <img src="https://xifty.org/wp-content/uploads/2025/12/xiftydark-scaled-e1764956465181.png"
-                alt="Shifty Logo">
-        </div>
-        <a href="{{ url_for('profile') }}" class="{% if request.endpoint == 'profile' %}active{% endif %}">
-            👤 Perfil
-        </a>
-        <a href="{{ url_for('my_prefs') }}" class="{% if request.endpoint == 'preferences_page' %}active{% endif %}">
-            📋 Preferencias
-        </a>
-        <a href="{{ url_for('calendar_view') }}" class="{% if request.endpoint == 'calendar_view' %}active{% endif %}">
-            📅 Calendario
-        </a>
-        <a href="{{ url_for('notifications_page') }}"
-            class="{% if request.endpoint == 'notifications_page' %}active{% endif %}">
-            🔔 Notificaciones
-        </a>
-        <a href="{{ url_for('chat_page') }}" class="{% if request.endpoint == 'chat_page' %}active{% endif %}">
-            💬 Chat
-        </a>
-        {% if current_user.role == 'manager' %}
-        <a href="{{ url_for('admin_swaps_page') }}"
-            class="{% if request.endpoint == 'admin_swaps_page' %}active{% endif %}">
-            ⚖️ Confirmar Cambios
-        </a>
-        <a href="{{ url_for('manager_config') }}"
-            class="{% if request.endpoint == 'manager_config' %}active{% endif %}">
-            ⚙️ Configuración
-        </a>
-        {% endif %}
-        <a href="{{ url_for('logout') }}" class="logout-btn">Cerrar Sesión</a>
-    </div>
-
-    <div class="main-content">
-        <div class="container">
-            {% block content %}{% endblock %}
-        </div>
-    </div>
+</div>
 </body>
 
 </html>

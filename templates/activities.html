@@ -1,0 +1,181 @@
+{% extends "base.html" %}
+
+{% block title %}Mis Actividades - Shifty{% endblock %}
+
+{% block extra_styles %}
+<style>
+    .activity-container {
+        display: flex;
+        gap: 20px;
+        margin-top: 20px;
+    }
+
+    .form-card {
+        flex: 1;
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        height: fit-content;
+    }
+
+    .list-card {
+        flex: 2;
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .form-group {
+        margin-bottom: 15px;
+    }
+
+    .form-group label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: bold;
+        color: #555;
+    }
+
+    .form-group input,
+    .form-group select {
+        width: 100%;
+        padding: 8px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        box-sizing: border-box;
+        /* Fix width overflow */
+    }
+
+    .activity-item {
+        border-bottom: 1px solid #eee;
+        padding: 15px 0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .activity-item:last-child {
+        border-bottom: none;
+    }
+
+    .badge {
+        display: inline-block;
+        padding: 3px 8px;
+        border-radius: 12px;
+        font-size: 0.8em;
+        background: #e2e8f0;
+        color: #4a5568;
+        margin-right: 8px;
+    }
+
+    .badge-weekly {
+        background: #bee3f8;
+        color: #2b6cb0;
+    }
+
+    .time-range {
+        color: #718096;
+        font-size: 0.9em;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<h2>Mis Actividades Extra</h2>
+<p>Aquí puedes registrar otras ocupaciones (consulta privada, clases, gimnasio...) para que aparezcan en tu Calendario
+    Semanal.</p>
+
+<div class="activity-container">
+    <!-- Add Form -->
+    <div class="form-card">
+        <h3>Nueva Actividad</h3>
+        <form action="{{ url_for('add_activity') }}" method="POST">
+            <div class="form-group">
+                <label>Nombre de la actividad</label>
+                <input type="text" name="name" placeholder="Ej: Consulta Privada" required>
+            </div>
+
+            <div class="form-group">
+                <label>Lugar (Opcional)</label>
+                <input type="text" name="place" placeholder="Ej: Hospital General">
+            </div>
+
+            <div class="form-group">
+                <label>Inicio (Fecha y Hora)</label>
+                <input type="datetime-local" name="start_time" required>
+            </div>
+
+            <div class="form-group">
+                <label>Fin (Fecha y Hora)</label>
+                <input type="datetime-local" name="end_time" required>
+            </div>
+
+            <div class="form-group">
+                <label>Repetición</label>
+                <select name="recurrence_type" id="recurrence_type" onchange="toggleRecurrenceEnd()">
+                    <option value="once">Solo una vez</option>
+                    <option value="weekly">Semanalmente (mismo día y hora)</option>
+                </select>
+            </div>
+
+            <div class="form-group" id="recurrence_end_group" style="display: none;">
+                <label>Repetir hasta (Opcional)</label>
+                <input type="date" name="recurrence_end_date">
+                <small style="color: #666;">Si se deja vacío, se repetirá indefinidamente.</small>
+            </div>
+
+            <button type="submit"
+                style="width: 100%; background: #48bb78; color: white; padding: 10px; border: none; border-radius: 4px; cursor: pointer;">
+                Añadir Actividad
+            </button>
+        </form>
+    </div>
+
+    <!-- List -->
+    <div class="list-card">
+        <h3>Mis Actividades Guardadas</h3>
+        {% if activities %}
+        {% for act in activities %}
+        <div class="activity-item">
+            <div>
+                <div style="font-weight: bold; font-size: 1.1em;">
+                    {% if act.recurrence_type == 'weekly' %}
+                    <span class="badge badge-weekly">Semanal</span>
+                    {{ act.start_time.strftime('%A') }}s
+                    {% else %}
+                    <span class="badge">Única</span>
+                    {{ act.start_time.strftime('%d/%m/%Y') }}
+                    {% endif %}
+                    - {{ act.name }}
+                </div>
+                <div class="time-range">
+                    🕒 {{ act.start_time.strftime('%H:%M') }} - {{ act.end_time.strftime('%H:%M') }}
+                    {% if act.place %}📍 {{ act.place }}{% endif %}
+                </div>
+            </div>
+
+            <form action="{{ url_for('delete_activity', id=act.id) }}" method="POST"
+                onsubmit="return confirm('¿Borrar esta actividad?');">
+                <button type="submit"
+                    style="background: white; border: 1px solid #ef4444; color: #ef4444; padding: 5px 10px; border-radius: 4px; cursor: pointer;">
+                    Eliminar
+                </button>
+            </form>
+        </div>
+        {% endfor %}
+        {% else %}
+        <p style="text-align: center; color: #aaa; margin-top: 50px;">No tienes actividades registradas.</p>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+    function toggleRecurrenceEnd() {
+        const type = document.getElementById('recurrence_type').value;
+        const endGroup = document.getElementById('recurrence_end_group');
+        endGroup.style.display = (type === 'weekly') ? 'block' : 'none';
+    }
+</script>
+{% endblock %}
