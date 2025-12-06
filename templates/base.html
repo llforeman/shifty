@@ -1,108 +1,205 @@
 <!DOCTYPE html>
 <html lang="es">
-width: 250px;
-background: #040E6C;
-color: #ffffff;
-padding: 20px 0;
-position: fixed;
-height: 100vh;
-overflow-y: auto;
-}
 
-.sidebar-logo {
-padding: 0 20px 20px 20px;
-border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-margin-bottom: 20px;
-text-align: center;
-}
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Shifty{% endblock %}</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
 
-.sidebar-logo img {
-width: 100%;
-height: auto;
-max-width: 200px;
-display: block;
-margin: 0 auto;
-}
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            display: flex;
+            min-height: 100vh;
+        }
 
-.sidebar a {
-display: block;
-padding: 15px 20px;
-color: #ffffff;
-text-decoration: none;
-transition: background 0.3s;
-}
+        .sidebar {
+            width: 250px;
+            background: #040E6C;
+            color: #ffffff;
+            padding: 20px 0;
+            position: fixed;
+            height: 100vh;
+            overflow-y: auto;
+        }
 
-.sidebar a:hover {
-background: rgba(255, 255, 255, 0.15);
-}
+        .sidebar-logo {
+            padding: 0 20px 20px 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+            margin-bottom: 20px;
+            text-align: center;
+        }
 
-.sidebar a.active {
-background: rgba(255, 255, 255, 0.25);
-border-left: 4px solid #ffffff;
-}
+        .sidebar-logo img {
+            width: 100%;
+            height: auto;
+            max-width: 200px;
+            display: block;
+            margin: 0 auto;
+        }
 
-.logout-btn {
-margin: 20px;
-padding: 10px 20px;
-background: #e74c3c;
-color: white;
-border: none;
-border-radius: 4px;
-cursor: pointer;
-width: calc(100% - 40px);
-text-align: center;
-display: block;
-text-decoration: none;
-}
+        .sidebar a {
+            display: block;
+            padding: 15px 20px;
+            color: #ffffff;
+            text-decoration: none;
+            transition: background 0.3s;
+        }
 
-.logout-btn:hover {
-background: #c0392b;
-}
+        .sidebar a:hover {
+            background: rgba(255, 255, 255, 0.15);
+        }
 
-.main-content {
-margin-left: 250px;
-padding: 30px;
-flex: 1;
-width: calc(100% - 250px);
-}
+        .sidebar a.active {
+            background: rgba(255, 255, 255, 0.25);
+            border-left: 4px solid #ffffff;
+        }
 
-.container {
-max-width: 1200px;
-background: #fff;
-padding: 30px;
-border-radius: 8px;
-box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
-}
+        .logout-btn {
+            margin: 20px;
+            padding: 10px 20px;
+            background: #e74c3c;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            width: calc(100% - 40px);
+            text-align: center;
+            display: block;
+            text-decoration: none;
+        }
 
-h1 {
-color: #333;
-margin-bottom: 20px;
-padding-bottom: 10px;
-border-bottom: 2px solid #3498db;
-}
+        .logout-btn:hover {
+            background: #c0392b;
+        }
 
-.alert {
-padding: 15px;
-margin-bottom: 20px;
-border-radius: 4px;
-}
+        .main-content {
+            margin-left: 250px;
+            padding: 30px;
+            flex: 1;
+            width: calc(100% - 250px);
+        }
 
-.alert-success {
-background: #d4edda;
-color: #155724;
-border: 1px solid #c3e6cb;
-}
+        .container {
+            max-width: 1200px;
+            background: #fff;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
+        }
 
-.alert-error {
-background: #f8d7da;
-color: #721c24;
-border: 1px solid #f5c6cb;
-}
-</style>
-{% block extra_styles %}{% endblock %}
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #3498db;
+        }
+
+        .alert {
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+        }
+
+        .alert-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .alert-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+    </style>
+    {% block extra_styles %}{% endblock %}
 </head>
 
-</div>
+<body>
+    <div class="sidebar">
+        <div class="sidebar-logo">
+            <img src="{{ url_for('static', filename='logo.png') }}" alt="Shifty Logo">
+            <h3 style="margin-top: 10px; margin-bottom: 0;">Shifty</h3>
+        </div>
+
+        {% if current_user.is_authenticated %}
+        <!-- NAV LINKS -->
+        <a href="{{ url_for('calendar_view', year=2025, month=1) }}"
+            class="{% if request.endpoint == 'calendar_view' %}active{% endif %}">
+            📅 Calendario General
+        </a>
+
+        <a href="{{ url_for('weekly_calendar') }}"
+            class="{% if request.endpoint == 'weekly_calendar' %}active{% endif %}">
+            📆 Agenda Semanal
+        </a>
+
+        <a href="{{ url_for('activities_page') }}"
+            class="{% if request.endpoint == 'activities_page' %}active{% endif %}">
+            ⚽ Mis Actividades
+        </a>
+
+        {% if current_user.pediatrician_id %}
+        <a href="{{ url_for('preferences_page', ped_id=current_user.pediatrician_id) }}"
+            class="{% if request.endpoint == 'preferences_page' %}active{% endif %}">
+            ⚙️ Mis Preferencias
+        </a>
+        {% endif %}
+
+        <a href="{{ url_for('notifications_page') }}"
+            class="{% if request.endpoint == 'notifications_page' %}active{% endif %}">
+            🔔 Notificaciones
+        </a>
+
+        <a href="{{ url_for('chat_page') }}" class="{% if request.endpoint == 'chat_page' %}active{% endif %}">
+            💬 Chat
+        </a>
+
+        <a href="{{ url_for('profile') }}" class="{% if request.endpoint == 'profile' %}active{% endif %}">
+            👤 Mi Perfil
+        </a>
+
+        {% if current_user.role == 'manager' %}
+        <div style="border-top: 1px solid rgba(255,255,255,0.2); margin: 10px 0;"></div>
+        <a href="{{ url_for('admin_swaps') }}" class="{% if request.endpoint == 'admin_swaps' %}active{% endif %}">
+            🔄 Gestionar Cambios
+        </a>
+        <a href="{{ url_for('preferences_view_selection') }}"
+            class="{% if request.endpoint == 'preferences_view_selection' %}active{% endif %}">
+            ⚙️ Ver Preferencias
+        </a>
+        {% endif %}
+
+        <a href="{{ url_for('logout') }}" class="logout-btn">Cerrar Sesión</a>
+        {% else %}
+        <a href="{{ url_for('login') }}" class="{% if request.endpoint == 'login' %}active{% endif %}">
+            🔑 Iniciar Sesión
+        </a>
+        {% endif %}
+    </div>
+
+    <div class="main-content">
+        <div class="container">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+            {% for category, message in messages %}
+            <div class="alert alert-{{ 'error' if category == 'error' else 'success' }}">
+                {{ message }}
+            </div>
+            {% endfor %}
+            {% endif %}
+            {% endwith %}
+
+            {% block content %}{% endblock %}
+        </div>
+    </div>
 </body>
 
 </html>
