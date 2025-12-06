@@ -164,15 +164,34 @@ class DraftShift(db.Model):
     def __repr__(self):
         return f"<DraftShift {self.pediatrician_id} on {self.date}>"
 
+class GlobalConfig(db.Model):
+    __tablename__ = 'global_config'
+    id = db.Column(db.Integer, primary_key=True)
+    key = db.Column(db.String(100), unique=True, nullable=False)
+    value = db.Column(db.String(255), nullable=False)
+
+    def __repr__(self):
+        return f"<GlobalConfig {self.key}={self.value}>"
+
 class ShiftSwapRequest(db.Model):
     __tablename__ = 'shift_swap_request'
     
     id = db.Column(db.Integer, primary_key=True)
     requester_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    key = db.Column(db.String(100), unique=True, nullable=False)
-    value = db.Column(db.String(255), nullable=False)
+    requester_shift_id = db.Column(db.Integer, db.ForeignKey('shift.id'), nullable=False)
+    target_user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    target_shift_id = db.Column(db.Integer, db.ForeignKey('shift.id'), nullable=False)
+    status = db.Column(db.String(20), default='pending_peer')
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+    # Relationships
+    requester = db.relationship('User', foreign_keys=[requester_id], backref='sent_swap_requests')
+    target_user = db.relationship('User', foreign_keys=[target_user_id], backref='received_swap_requests')
+    requester_shift = db.relationship('Shift', foreign_keys=[requester_shift_id])
     target_shift = db.relationship('Shift', foreign_keys=[target_shift_id])
+
+    def __repr__(self):
+        return f"<ShiftSwapRequest {self.id} Status: {self.status}>"
 
 class Notification(db.Model):
     __tablename__ = 'notification'
@@ -189,7 +208,6 @@ class Notification(db.Model):
     def __repr__(self):
         return f"<Notification {self.user_id}: {self.message}>"
 
-class ChatMessage(db.Model):
 class ChatMessage(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False) # Sender
