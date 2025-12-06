@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+
+{% block title %}Chat - Shifty{% endblock %}
+
+{% block extra_styles %}
+<style>
+    .chat-container {
+        display: flex;
+        flex-direction: column;
+        height: 70vh;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        overflow: hidden;
+        background: #fff;
+    }
+
+    .chat-messages {
+        flex: 1;
+        padding: 20px;
+        overflow-y: auto;
+        background: #f9f9f9;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .message-bubble {
+        max-width: 70%;
+        padding: 10px 15px;
+
+        .message-bubble.other {
+            align-self: flex-start;
+            background-color: #e0e0e0;
+            color: #333;
+            border-bottom-left-radius: 5px;
+            margin-right: auto;
+        }
+
+        .message-info {
+            font-size: 0.75em;
+            margin-bottom: 3px;
+            opacity: 0.8;
+        }
+
+        .input-area {
+            padding: 15px;
+            background: #fff;
+            border-top: 1px solid #ddd;
+            display: flex;
+            gap: 10px;
+        }
+
+        .input-area input {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 20px;
+            outline: none;
+        }
+
+        .input-area button {
+            background-color: #2ecc71;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .input-area button:hover {
+            background-color: #27ae60;
+        }
+</style>
+{% endblock %}
+
+{% block content %}
+<h1>Chat General</h1>
+
+<div class="chat-container">
+    <div class="chat-messages" id="chat-messages">
+        <!-- Messages will be loaded here -->
+        <div style="text-align: center; color: #999; margin-top: 20px;">Cargando mensajes...</div>
+    </div>
+    <div class="input-area">
+        <input type="text" id="message-input" placeholder="Escribe un mensaje..." autocomplete="off">
+        <button onclick="sendMessage()">Enviar</button>
+    </div>
+</div>
+
+<script>
+    const chatContainer = document.getElementById('chat-messages');
+
+    function loadMessages() {
+        fetch('{{ url_for("get_messages") }}')
+            .then(response => response.json())
+            .then(data => {
+                const currentScroll = chatContainer.scrollTop;
+                const isNearBottom = chatContainer.scrollHeight - chatContainer.clientHeight <= currentScroll + 100;
+
+                chatContainer.innerHTML = '';
+
+                if (data.length === 0) {
+                    chatContainer.innerHTML = '<div style="text-align: center; color: #999; margin-top: 20px;">No hay mensajes aún. ¡Di hola!</div>';
+                    return;
+                }
+
+                data.forEach(msg => {
+                    const bubble = document.createElement('div');
+                    bubble.className = `message-bubble ${msg.is_me ? 'me' : 'other'}`;
+
+                    const info = document.createElement('div');
+                    info.className = 'message-info';
+                    info.innerText = `${msg.user} • ${msg.timestamp}`;
+
+                    const text = document.createElement('div');
+                    text.innerText = msg.message;
+
+                    bubble.appendChild(info);
+                    bubble.appendChild(text);
+                    chatContainer.appendChild(bubble);
+                });
+
+                // Auto scroll to bottom if we were near bottom
+                if (isNearBottom) {
+                    chatContainer.scrollTop = chatContainer.scrollHeight;
+                }
+            })
+            .catch(err => console.error('Error loading messages:', err));
+    }
+
+    function sendMessage() {
+        const input = document.getElementById('message-input');
+        const text = input.value.trim();
+        if (!text) return;
+
+        fetch('{{ url_for("post_message") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ message: text })
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    input.value = '';
+                    loadMessages();
+                    // Force scroll to bottom on send
+                    setTimeout(() => chatContainer.scrollTop = chatContainer.scrollHeight, 100);
+                }
+            });
+    }
+
+    // Allow Enter key to send
+    document.getElementById('message-input').addEventListener('keypress', function (e) {
+        if (e.key === 'Enter') {
+            sendMessage();
+        }
+    });
+
+    // Suboptimal but simple: Poll every 3 seconds
+    loadMessages();
+    setInterval(loadMessages, 3000);
+</script>
+{% endblock %}

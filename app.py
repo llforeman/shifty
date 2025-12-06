@@ -169,41 +169,6 @@ class ShiftSwapRequest(db.Model):
     
     id = db.Column(db.Integer, primary_key=True)
     requester_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    # The shift the requester wants to GIVE UP
-    requester_shift_id = db.Column(db.Integer, db.ForeignKey('shift.id'), nullable=False)
-    
-    target_user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    # The shift the requester wants to TAKE (or None if just giving up? No, requirements say swap)
-    target_shift_id = db.Column(db.Integer, db.ForeignKey('shift.id'), nullable=False)
-    
-    # Status: 'pending_peer', 'pending_admin', 'approved', 'rejected'
-    status = db.Column(db.String(50), default='pending_peer')
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    
-    requester = db.relationship('User', foreign_keys=[requester_id], backref='sent_swaps')
-    target_user = db.relationship('User', foreign_keys=[target_user_id], backref='received_swaps')
-    requester_shift = db.relationship('Shift', foreign_keys=[requester_shift_id])
-    target_shift = db.relationship('Shift', foreign_keys=[target_shift_id])
-
-class Notification(db.Model):
-    __tablename__ = 'notification'
-    
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    message = db.Column(db.String(255), nullable=False)
-    link = db.Column(db.String(255)) # e.g., /notifications
-    is_read = db.Column(db.Boolean, default=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    
-    user = db.relationship('User', backref='notifications')
-
-    def __repr__(self):
-        return f"<Notification {self.user_id}: {self.message}>"
-
-class GlobalConfig(db.Model):
-    __tablename__ = 'global_config'
-    
-    id = db.Column(db.Integer, primary_key=True)
     key = db.Column(db.String(100), unique=True, nullable=False)
     value = db.Column(db.String(255), nullable=False)
 
