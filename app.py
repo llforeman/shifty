@@ -778,6 +778,81 @@ def calendar_view(year=None, month=None):
     
     return render_template('calendar.html', 
                            year=year, month=month, month_name=month_name,
+                           month_calendar=cal, shifts=shifts_by_day,
+                           prev_year=prev_year, prev_month=prev_month,
+                           next_year=next_year, next_month=next_month,
+                           next_shift_date=next_shift_date,
+                           is_draft=is_draft,
+                           current_user=current_user)
+
+@app.route('/api/swap_shifts', methods=['POST'])
+@login_required
+@role_required('manager')
+def swap_shifts():
+    data = request.json
+    source_id = data.get('source_id')
+    target_id = data.get('target_id') # Optional: ID of shift being swapped with
+    target_date_str = data.get('target_date') # Required: Date to move/swap to
+    mode = data.get('mode') # 'draft' or 'live'
+    
+    if not source_id or not target_date_str:
+        return jsonify({'status': 'error', 'message': 'Missing required fields'}), 400
+        
+    try:
+        ModelClass = DraftShift if mode == 'draft' else Shift
+        target_date = date.fromisoformat(target_date_str)
+        
+        # Get source shift
+        source_shift = db.session.get(ModelClass, source_id)
+        if not source_shift:
+            return jsonify({'status': 'error', 'message': 'Source shift not found'}), 404
+            
+        # CASE 1: Swapping with an existing shift
+        if target_id:
+            target_shift = db.session.get(ModelClass, target_id)
+            if not target_shift:
+                return jsonify({'status': 'error', 'message': 'Target shift not found'}), 404
+            
+            # Check for conflicts
+            conflict_b = ModelClass.query.filter_by(pediatrician_id=target_shift.pediatrician_id, date=source_shift.date).first()
+            if conflict_b and conflict_b.id != source_shift.id:
+                 return jsonify({'status': 'error', 'message': f'Conflict: {target_shift.pediatrician.name} already has a shift on {source_shift.date}'}), 400
+
+            conflict_a = ModelClass.query.filter_by(pediatrician_id=source_shift.pediatrician_id, date=target_shift.date).first()
+            if conflict_a and conflict_a.id != target_shift.id:
+                 return jsonify({'status': 'error', 'message': f'Conflict: {source_shift.pediatrician.name} already has a shift on {target_shift.date}'}), 400
+
+            # Perform Swap
+            p1 = source_shift.pediatrician_id
+            p2 = target_shift.pediatrician_id
+            
+            source_shift.pediatrician_id = p2
+            target_shift.pediatrician_id = p1
+            
+            db.session.commit()
+            return jsonify({'status': 'success', 'message': 'Shifts swapped successfully'})
+
+        # CASE 2: Moving to an empty slot
+        else:
+            # Check if source pediatrician already has a shift on target date
+            existing = ModelClass.query.filter_by(pediatrician_id=source_shift.pediatrician_id, date=target_date).first()
+            if existing:
+                 return jsonify({'status': 'error', 'message': f'Conflict: {source_shift.pediatrician.name} already has a shift on {target_date}'}), 400
+            
+            # Move shift
+            source_shift.date = target_date
+            db.session.commit()
+            return jsonify({'status': 'success', 'message': 'Shift moved successfully'})
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@app.route('/api/request_swap', methods=['POST'])
+@login_required
+def request_swap():
+    data = request.json
+    source_shift_id = data.get('source_shift_id')
     target_shift_id = data.get('target_shift_id')
     
     if not source_shift_id or not target_shift_id:
