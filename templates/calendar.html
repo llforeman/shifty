@@ -127,11 +127,14 @@
     {% if day == 0 %}
     <div class="day-cell empty-cell"></div>
     {% else %}
-    <div class="day-cell">
+    <div class="day-cell" data-date="{{ year }}-{{ '%02d' % month }}-{{ '%02d' % day }}">
         <span class="day-number">{{ day }}</span>
         {% if shifts.get(day) %}
         {% for shift in shifts[day] %}
-        <div class="shift-item">{{ shift.pediatrician.name }}</div>
+        <div class="shift-item" {% if current_user.role=='manager' %} draggable="true" data-shift-id="{{ shift.id }}"
+            data-ped-id="{{ shift.pediatrician_id }}" style="cursor: grab;" {% endif %}>
+            {{ shift.pediatrician.name }}
+        </div>
         {% endfor %}
         {% endif %}
     </div>
@@ -139,4 +142,109 @@
     {% endfor %}
     {% endfor %}
 </div>
+
+{% if current_user.role == 'manager' %}
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        // Prevent default drag behaviors
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            document.body.addEventListener(eventName, preventDefaults, false);
+        });
+
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        const shifts = document.querySelectorAll('.shift-item[draggable="true"]');
+        const cells = document.querySelectorAll('.day-cell:not(.empty-cell)');
+
+        let draggedItem = null;
+
+        shifts.forEach(shift => {
+            shift.addEventListener('dragstart', function (e) {
+                draggedItem = this;
+                e.dataTransfer.setData('shiftId', this.dataset.shiftId);
+                e.dataTransfer.effectAllowed = 'move';
+                setTimeout(() => this.style.opacity = '0.5', 0);
+            });
+
+            shift.addEventListener('dragend', function () {
+                setTimeout(() => {
+                    this.style.opacity = '1';
+                    draggedItem = null;
+                }, 0);
+            });
+        });
+
+        cells.forEach(cell => {
+            cell.addEventListener('dragover', function (e) {
+                // Must call preventDefault to allow dropping
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                this.style.backgroundColor = '#f0f0f0';
+            });
+
+            cell.addEventListener('dragleave', function () {
+                this.style.backgroundColor = '#fff';
+            });
+
+            cell.addEventListener('drop', function (e) {
+                e.preventDefault();
+                this.style.backgroundColor = '#fff';
+
+                // Get the dragged shift ID
+                const shiftId = e.dataTransfer.getData('shiftId');
+
+                // Find where we dropped it
+                const targetDate = this.dataset.date;
+
+                // Check if dropped on another shift inside the cell
+                let targetShiftId = null;
+                let targetElement = e.target;
+
+                // Traverse up to find if we dropped on a shift-item
+                while (targetElement && targetElement !== this) {
+                    if (targetElement.classList.contains('shift-item')) {
+                        targetShiftId = targetElement.dataset.shiftId;
+                        break;
+                    }
+                    targetElement = targetElement.parentElement;
+                }
+
+                if (!shiftId || !targetDate) return;
+
+                // Don't do anything if dropped on itself
+                if (shiftId === targetShiftId) return;
+
+                // Perform swap/move
+                fetch('{{ url_for("swap_shifts") }}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        source_id: shiftId,
+                        target_id: targetShiftId,
+                        target_date: targetDate,
+                        mode: '{{ "draft" if is_draft else "live" }}'
+                    })
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === 'success') {
+                            location.reload();
+                        } else {
+                            alert('Error: ' + data.message);
+                        }
+                    })
+                    .catch(err => {
+                        console.error('Error:', err);
+                        alert('An unexpected error occurred.');
+                    });
+            });
+        });
+    });
+</script>
+{% endif %}
 {% endblock %}
