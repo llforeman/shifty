@@ -29,7 +29,6 @@ db = SQLAlchemy(app)
 redis_url = os.getenv('REDIS_URL', 'redis://localhost:6379')
 redis_conn = Redis.from_url(redis_url)
 task_queue = Queue('default', connection=redis_conn)
-
 # Configure session cookies
 # Always use secure cookies in production (Render uses HTTPS)
 # The ENVIRONMENT variable might not be set, so we also check for typical production indicators
@@ -147,6 +146,23 @@ class Shift(db.Model):
 
     def __repr__(self):
         return f"<Shift {self.pediatrician_id} on {self.date}>"
+
+class DraftShift(db.Model):
+    __tablename__ = 'draft_shift'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    pediatrician_id = db.Column(db.Integer, db.ForeignKey('pediatrician.id'), nullable=False)
+    date = db.Column(db.Date, nullable=False)
+    type = db.Column(db.String(50), default='Shift') # 'Shift', 'Guardia', etc.
+    
+    # Relationship to access the pediatrician
+    pediatrician = db.relationship('Pediatrician', backref='draft_shifts', lazy=True)
+    
+    # Constraint: A pediatrician can only have one shift per date (usually)
+    __table_args__ = (db.UniqueConstraint('pediatrician_id', 'date', name='_ped_draft_shift_uc'),)
+
+    def __repr__(self):
+        return f"<DraftShift {self.pediatrician_id} on {self.date}>"
 
 class GlobalConfig(db.Model):
     __tablename__ = 'global_config'
@@ -633,6 +649,38 @@ def debug_shifts():
     output += "</ul>"
     return output
 
+@app.route('/publish_schedule/<int:year>/<int:month>', methods=['POST'])
+@login_required
+@role_required('manager')
+def publish_schedule(year, month):
+    try:
+        start_date = date(year, month, 1)
+        _, last_day = calendar.monthrange(year, month)
+        end_date = date(year, month, last_day)
+
+        # 1. Clear existing live shifts for this range
+        Shift.query.filter(Shift.date >= start_date, Shift.date <= end_date).delete()
+        
+        # 2. Get draft shifts
+        drafts = DraftShift.query.filter(DraftShift.date >= start_date, DraftShift.date <= end_date).all()
+        
+        # 3. Copy to Shift table
+        new_shifts = []
+        for d in drafts:
+            new_shifts.append(Shift(
+                pediatrician_id=d.pediatrician_id, 
+                date=d.date,
+                type=d.type
+            ))
+            
+        db.session.add_all(new_shifts)
+        db.session.commit()
+        
+        return redirect(url_for('calendar_view', year=year, month=month))
+    except Exception as e:
+        db.session.rollback()
+        return f"Error publishing schedule: {str(e)}", 500
+
 @app.route('/calendar')
 @app.route('/calendar/<int:year>/<int:month>')
 @login_required
@@ -641,6 +689,11 @@ def calendar_view(year=None, month=None):
         today = date.today()
         year, month = today.year, today.month
         
+    # Check if we are viewing draft (manager only)
+    is_draft = request.args.get('mode') == 'draft'
+    if is_draft and current_user.role != 'manager':
+        abort(403)
+
     # Calculate prev/next month for navigation
     if month == 1:
         prev_month, prev_year = 12, year - 1
@@ -660,19 +713,20 @@ def calendar_view(year=None, month=None):
     _, last_day = calendar.monthrange(year, month)
     end_date = date(year, month, last_day)
     
-    # Filter shifts based on user role
-    shifts_query = Shift.query.filter(Shift.date >= start_date, Shift.date <= end_date)
+    # Select which table to query
+    ModelClass = DraftShift if is_draft else Shift
+    shifts_query = ModelClass.query.filter(ModelClass.date >= start_date, ModelClass.date <= end_date)
     
-    # Regular users only see their own shifts
-    if current_user.role != 'manager' and current_user.pediatrician_id:
-        shifts_query = shifts_query.filter(Shift.pediatrician_id == current_user.pediatrician_id)
+    # Regular users only see their own shifts (NOT applicable for draft mode as purely admin)
+    if not is_draft and current_user.role != 'manager' and current_user.pediatrician_id:
+        shifts_query = shifts_query.filter(ModelClass.pediatrician_id == current_user.pediatrician_id)
     
     shifts_list = shifts_query.all()
     
-    # If no shifts found for this month, check for future shifts
+    # If no shifts found for this month, check for future shifts (navigation help)
     next_shift_date = None
     if not shifts_list:
-        next_shift_query = Shift.query.filter(Shift.date > end_date).order_by(Shift.date).first()
+        next_shift_query = ModelClass.query.filter(ModelClass.date > end_date).order_by(ModelClass.date).first()
         if next_shift_query:
             next_shift_date = next_shift_query.date
 
@@ -691,7 +745,9 @@ def calendar_view(year=None, month=None):
                            month_calendar=cal, shifts=shifts_by_day,
                            prev_year=prev_year, prev_month=prev_month,
                            next_year=next_year, next_month=next_month,
-                           next_shift_date=next_shift_date)
+                           next_shift_date=next_shift_date,
+                           is_draft=is_draft,
+                           current_user=current_user) # Pass current_user expressly if needed by logic
 
 if __name__ == '__main__':
     # Initialize database before running the app

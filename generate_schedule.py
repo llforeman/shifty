@@ -4,7 +4,7 @@ import pandas as pd
 from pulp import LpProblem, LpVariable, LpMinimize, LpStatus, LpBinary, lpSum, value
 import logging
 
-from app import app, db, Shift, Pediatrician, Preference, GlobalConfig
+from app import app, db, Shift, DraftShift, Pediatrician, Preference, GlobalConfig
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -213,7 +213,7 @@ def generate_and_save(start_year=2026, start_month=7, end_year=2026, end_month=1
         else:
             end_clean = (datetime(end_year, end_month + 1, 1) - timedelta(days=1)).date()
         
-        Shift.query.filter(Shift.date >= start_clean, Shift.date <= end_clean).delete()
+        DraftShift.query.filter(DraftShift.date >= start_clean, DraftShift.date <= end_clean).delete()
         db.session.commit()
 
         xls = pd.ExcelFile('year26.xlsx')
@@ -441,7 +441,7 @@ def generate_and_save(start_year=2026, start_month=7, end_year=2026, end_month=1
                 for p in pediatricians:
                     for d in data['month_days']:
                         if last_x[p, d].varValue == 1:
-                            shifts_to_add.append(Shift(pediatrician_id=p, date=d))
+                            shifts_to_add.append(DraftShift(pediatrician_id=p, date=d))
                 
                 logger.info(f"Attempting to add {len(shifts_to_add)} shifts for {month_str}...")
                 

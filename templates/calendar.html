@@ -77,6 +77,31 @@
     <a href="{{ url_for('calendar_view', year=next_year, month=next_month) }}" class="nav-btn">Siguiente &rarr;</a>
 </div>
 
+{% if is_draft and current_user.role == 'manager' %}
+<div
+    style="background-color: #fff3cd; color: #856404; padding: 15px; margin-bottom: 20px; border-radius: 4px; border: 1px solid #ffeeba; display: flex; justify-content: space-between; align-items: center;">
+    <div>
+        <strong>MODO BORRADOR (DRAFT)</strong> - Estás viendo el calendario generado provisionalmente.
+    </div>
+    <form action="{{ url_for('publish_schedule', year=year, month=month) }}" method="POST" style="margin: 0;">
+        <button type="submit" class="nav-btn" style="background-color: #28a745; border: none; cursor: pointer;">Publicar
+            Horario</button>
+    </form>
+</div>
+{% endif %}
+
+<div style="margin-bottom: 10px; text-align: center;">
+    {% if current_user.role == 'manager' %}
+    {% if is_draft %}
+    <a href="{{ url_for('calendar_view', year=year, month=month) }}" class="nav-btn"
+        style="background-color: #6c757d; font-size: 0.9em;">Ver Calendario Publicado</a>
+    {% else %}
+    <a href="{{ url_for('calendar_view', year=year, month=month, mode='draft') }}" class="nav-btn"
+        style="background-color: #e0a800; font-size: 0.9em;">Ver Borrador (Draft)</a>
+    {% endif %}
+    {% endif %}
+</div>
+
 {% if next_shift_date %}
 <div
     style="background-color: #d4edda; color: #155724; padding: 15px; margin-bottom: 20px; border-radius: 4px; border: 1px solid #c3e6cb; text-align: center;">
