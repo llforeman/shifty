@@ -4,13 +4,65 @@
 
 {% block extra_styles %}
 <style>
-    .chat-container {
+    .chat-layout {
         display: flex;
-        flex-direction: column;
         height: 70vh;
         border: 1px solid #ddd;
         border-radius: 8px;
         overflow: hidden;
+        background: #fff;
+    }
+
+    .user-list {
+        width: 250px;
+        border-right: 1px solid #ddd;
+        display: flex;
+        flex-direction: column;
+        background: #f4f4f4;
+    }
+
+    .user-list-header {
+        padding: 15px;
+        background: #040E6C;
+        color: white;
+        font-weight: bold;
+    }
+
+    .user-list ul {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        overflow-y: auto;
+        flex: 1;
+    }
+
+    .user-list li {
+        padding: 15px;
+        cursor: pointer;
+        border-bottom: 1px solid #eee;
+        transition: background 0.2s;
+    }
+
+    .user-list li:hover {
+        background: #e0e0e0;
+    }
+
+    .user-list li.active {
+        background: #d0e0ff;
+        font-weight: bold;
+        border-left: 4px solid #3498db;
+    }
+
+    .chat-area {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .chat-header {
+        padding: 15px;
+        border-bottom: 1px solid #ddd;
+        font-weight: bold;
         background: #fff;
     }
 
@@ -27,72 +79,158 @@
     .message-bubble {
         max-width: 70%;
         padding: 10px 15px;
+        border-radius: 15px;
+        position: relative;
+        word-wrap: break-word;
+    }
 
-        .message-bubble.other {
-            align-self: flex-start;
-            background-color: #e0e0e0;
-            color: #333;
-            border-bottom-left-radius: 5px;
-            margin-right: auto;
-        }
+    .message-bubble.me {
+        align-self: flex-end;
+        background-color: #3498db;
+        color: white;
+        border-bottom-right-radius: 5px;
+        margin-left: auto;
+    }
 
-        .message-info {
-            font-size: 0.75em;
-            margin-bottom: 3px;
-            opacity: 0.8;
-        }
+    .message-bubble.other {
+        align-self: flex-start;
+        background-color: #e0e0e0;
+        color: #333;
+        border-bottom-left-radius: 5px;
+        margin-right: auto;
+    }
 
-        .input-area {
-            padding: 15px;
-            background: #fff;
-            border-top: 1px solid #ddd;
-            display: flex;
-            gap: 10px;
-        }
+    .message-info {
+        font-size: 0.75em;
+        margin-bottom: 3px;
+        opacity: 0.8;
+    }
 
-        .input-area input {
-            flex: 1;
-            padding: 10px;
-            border: 1px solid #ccc;
-            border-radius: 20px;
-            outline: none;
-        }
+    .input-area {
+        padding: 15px;
+        background: #fff;
+        border-top: 1px solid #ddd;
+        display: flex;
+        gap: 10px;
+    }
 
-        .input-area button {
-            background-color: #2ecc71;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 20px;
-            cursor: pointer;
-            font-weight: bold;
-        }
+    .input-area input {
+        flex: 1;
+        padding: 10px;
+        border: 1px solid #ccc;
+        border-radius: 20px;
+        outline: none;
+    }
 
-        .input-area button:hover {
-            background-color: #27ae60;
-        }
+    .input-area button {
+        background-color: #2ecc71;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 20px;
+        cursor: pointer;
+        font-weight: bold;
+    }
+
+    .input-area button:hover {
+        background-color: #27ae60;
+    }
+
+    .no-chat-selected {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #999;
+        font-size: 1.2em;
+    }
 </style>
 {% endblock %}
 
 {% block content %}
-<h1>Chat General</h1>
+<h1>Mensajes Directos</h1>
 
-<div class="chat-container">
-    <div class="chat-messages" id="chat-messages">
-        <!-- Messages will be loaded here -->
-        <div style="text-align: center; color: #999; margin-top: 20px;">Cargando mensajes...</div>
+<div class="chat-layout">
+    <div class="user-list">
+        <div class="user-list-header">Usuarios</div>
+        <ul id="user-list-ul">
+            <!-- Users will be loaded here -->
+            <li style="padding:15px; text-align:center;">Cargando...</li>
+        </ul>
     </div>
-    <div class="input-area">
-        <input type="text" id="message-input" placeholder="Escribe un mensaje..." autocomplete="off">
-        <button onclick="sendMessage()">Enviar</button>
+
+    <div class="chat-area">
+        <div id="chat-header" class="chat-header" style="display:none;">
+            Chat con <span id="chat-partner-name">...</span>
+        </div>
+
+        <div id="chat-messages" class="chat-messages" style="display:none;">
+            <!-- Messages go here -->
+        </div>
+
+        <div id="no-chat-placeholder" class="no-chat-selected">
+            Selecciona un usuario para chatear
+        </div>
+
+        <div id="input-area" class="input-area" style="display:none;">
+            <input type="text" id="message-input" placeholder="Escribe un mensaje..." autocomplete="off">
+            <button onclick="sendMessage()">Enviar</button>
+        </div>
     </div>
 </div>
 
 <script>
+    let currentPartnerId = null;
+    let pollInterval = null;
     const chatContainer = document.getElementById('chat-messages');
 
+    // 1. Load Users
+    fetch('{{ url_for("get_chat_users") }}')
+        .then(res => res.json())
+        .then(users => {
+            const list = document.getElementById('user-list-ul');
+            list.innerHTML = '';
+
+            if (users.length === 0) {
+                list.innerHTML = '<li style="cursor:default;">No hay otros usuarios.</li>';
+                return;
+            }
+
+            users.forEach(u => {
+                const li = document.createElement('li');
+                li.innerText = u.username;
+                li.onclick = () => selectUser(u.id, u.username, li);
+                list.appendChild(li);
+            });
+        });
+
+    function selectUser(userId, username, liElement) {
+        currentPartnerId = userId;
+
+        // Update User List UI
+        document.querySelectorAll('.user-list li').forEach(el => el.classList.remove('active'));
+        liElement.classList.add('active');
+
+        // Show Chat UI
+        document.getElementById('no-chat-placeholder').style.display = 'none';
+        document.getElementById('chat-header').style.display = 'block';
+        document.getElementById('chat-messages').style.display = 'flex';
+        document.getElementById('input-area').style.display = 'flex';
+
+        document.getElementById('chat-partner-name').innerText = username;
+
+        // Clear previous interval
+        if (pollInterval) clearInterval(pollInterval);
+
+        // Load messages immediately and then poll
+        loadMessages();
+        pollInterval = setInterval(loadMessages, 3000);
+    }
+
     function loadMessages() {
-        fetch('{{ url_for("get_messages") }}')
+        if (!currentPartnerId) return;
+
+        fetch(`/api/messages/${currentPartnerId}`)
             .then(response => response.json())
             .then(data => {
                 const currentScroll = chatContainer.scrollTop;
@@ -101,7 +239,7 @@
                 chatContainer.innerHTML = '';
 
                 if (data.length === 0) {
-                    chatContainer.innerHTML = '<div style="text-align: center; color: #999; margin-top: 20px;">No hay mensajes aún. ¡Di hola!</div>';
+                    chatContainer.innerHTML = '<div style="text-align: center; color: #999; margin-top: 20px;">No hay mensajes. ¡Di hola!</div>';
                     return;
                 }
 
@@ -111,7 +249,7 @@
 
                     const info = document.createElement('div');
                     info.className = 'message-info';
-                    info.innerText = `${msg.user} • ${msg.timestamp}`;
+                    info.innerText = `${msg.timestamp}`; // Showing just timestamp for cleaner look in DM
 
                     const text = document.createElement('div');
                     text.innerText = msg.message;
@@ -121,7 +259,7 @@
                     chatContainer.appendChild(bubble);
                 });
 
-                // Auto scroll to bottom if we were near bottom
+                // Auto scroll
                 if (isNearBottom) {
                     chatContainer.scrollTop = chatContainer.scrollHeight;
                 }
@@ -130,6 +268,8 @@
     }
 
     function sendMessage() {
+        if (!currentPartnerId) return;
+
         const input = document.getElementById('message-input');
         const text = input.value.trim();
         if (!text) return;
@@ -139,28 +279,25 @@
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ message: text })
+            body: JSON.stringify({
+                recipient_id: currentPartnerId,
+                message: text
+            })
         })
             .then(response => response.json())
             .then(data => {
                 if (data.status === 'success') {
                     input.value = '';
                     loadMessages();
-                    // Force scroll to bottom on send
                     setTimeout(() => chatContainer.scrollTop = chatContainer.scrollHeight, 100);
                 }
             });
     }
 
-    // Allow Enter key to send
     document.getElementById('message-input').addEventListener('keypress', function (e) {
         if (e.key === 'Enter') {
             sendMessage();
         }
     });
-
-    // Suboptimal but simple: Poll every 3 seconds
-    loadMessages();
-    setInterval(loadMessages, 3000);
 </script>
 {% endblock %}

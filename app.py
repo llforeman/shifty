@@ -190,20 +190,25 @@ class Notification(db.Model):
         return f"<Notification {self.user_id}: {self.message}>"
 
 class ChatMessage(db.Model):
+class ChatMessage(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False) # Sender
+    recipient_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True) # Receiver (True for now to support public chat if needed, but we aim for DM)
     message = db.Column(db.Text, nullable=False)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
     
-    user = db.relationship('User', backref='messages')
+    sender = db.relationship('User', foreign_keys=[user_id], backref='sent_messages')
+    recipient = db.relationship('User', foreign_keys=[recipient_id], backref='received_messages')
 
     def to_dict(self):
         return {
             'id': self.id,
-            'user': self.user.username,
+            'sender_id': self.user_id,
+            'sender_name': self.sender.username,
+            'recipient_id': self.recipient_id,
             'message': self.message,
             'timestamp': self.timestamp.strftime('%Y-%m-%d %H:%M:%S'),
-            'is_me': False # Will be set dynamically in API
+            'is_me': (self.user_id == current_user.id)
         }
 
 @app.route('/chat')
@@ -211,32 +216,38 @@ class ChatMessage(db.Model):
 def chat_page():
     return render_template('chat.html')
 
-@app.route('/api/messages', methods=['GET'])
+@app.route('/api/users', methods=['GET'])
 @login_required
-def get_messages():
-    # Get last 50 messages
-    msgs = ChatMessage.query.order_by(ChatMessage.timestamp.desc()).limit(50).all()
-    # Reverse to show oldest first
-    msgs = msgs[::-1]
+def get_chat_users():
+    # Return list of other users to chat with
+    users = User.query.filter(User.id != current_user.id).all()
+    return jsonify([{'id': u.id, 'username': u.username} for u in users])
+
+@app.route('/api/messages/<int:partner_id>', methods=['GET'])
+@login_required
+def get_conversation(partner_id):
+    # Get messages between current_user and partner_id
+    # (my sent to them) OR (their sent to me)
+    msgs = ChatMessage.query.filter(
+        db.or_(
+            db.and_(ChatMessage.user_id == current_user.id, ChatMessage.recipient_id == partner_id),
+            db.and_(ChatMessage.user_id == partner_id, ChatMessage.recipient_id == current_user.id)
+        )
+    ).order_by(ChatMessage.timestamp.asc()).all() # Oldest first for chat log
     
-    result = []
-    for m in msgs:
-        d = m.to_dict()
-        d['is_me'] = (m.user_id == current_user.id)
-        result.append(d)
-        
-    return jsonify(result)
+    return jsonify([m.to_dict() for m in msgs])
 
 @app.route('/api/messages', methods=['POST'])
 @login_required
 def post_message():
     data = request.json
+    recipient_id = data.get('recipient_id')
     content = data.get('message')
     
-    if not content:
-        return jsonify({'status': 'error', 'message': 'Empty message'}), 400
+    if not content or not recipient_id:
+        return jsonify({'status': 'error', 'message': 'Missing content or recipient'}), 400
         
-    msg = ChatMessage(user_id=current_user.id, message=content)
+    msg = ChatMessage(user_id=current_user.id, recipient_id=recipient_id, message=content)
     db.session.add(msg)
     db.session.commit()
     
