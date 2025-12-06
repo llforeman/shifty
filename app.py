@@ -275,7 +275,23 @@ def post_message():
 # 2. DATABASE INITIALIZATION (Run this once to create tables)
 # -----------------
 def seed_global_config():
-    """Seeds the database with default configuration values."""
+    """Seeds the database with default configuration values and handles schema updates."""
+    # 1. Schema Migration: Check for recipient_id in chat_message
+    try:
+        inspector = db.inspect(db.engine)
+        columns = [c['name'] for c in inspector.get_columns('chat_message')]
+        if 'recipient_id' not in columns:
+            print("Migrating: Adding recipient_id to chat_message...")
+            with db.engine.connect() as conn:
+                conn.execute(db.text("ALTER TABLE chat_message ADD COLUMN recipient_id INTEGER"))
+                # SQLite doesn't support adding FK in ALTER easily, but MySQL does.
+                # For safety/compatibility we might skip FK constraint or try it.
+                # conn.execute(db.text("ALTER TABLE chat_message ADD CONSTRAINT fk_chat_recipient FOREIGN KEY (recipient_id) REFERENCES user(id)"))
+                conn.commit()
+            print("Migration successful: recipient_id added.")
+    except Exception as e:
+        print(f"Migration check failed (safe to ignore if table doesn't exist yet): {e}")
+
     defaults = {
         'S1': '2', # min pediatricians/day
         'S2': '2', # max pediatricians/day
