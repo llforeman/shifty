@@ -1,125 +1,105 @@
 <!DOCTYPE html>
 <html lang="es">
+width: 250px;
+background: #040E6C;
+color: #ffffff;
+padding: 20px 0;
+position: fixed;
+height: 100vh;
+overflow-y: auto;
+}
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Shifty{% endblock %}</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+.sidebar-logo {
+padding: 0 20px 20px 20px;
+border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+margin-bottom: 20px;
+text-align: center;
+}
 
-        body {
-            font-family: Arial, sans-serif;
-            background-color: #f4f4f4;
-            display: flex;
-            min-height: 100vh;
-        }
+.sidebar-logo img {
+width: 100%;
+height: auto;
+max-width: 200px;
+display: block;
+margin: 0 auto;
+}
 
-        .sidebar {
-            width: 250px;
-            background: #040E6C;
-            color: #ffffff;
-            padding: 20px 0;
-            position: fixed;
-            height: 100vh;
-            overflow-y: auto;
-        }
+.sidebar a {
+display: block;
+padding: 15px 20px;
+color: #ffffff;
+text-decoration: none;
+transition: background 0.3s;
+}
 
-        .sidebar-logo {
-            padding: 0 20px 20px 20px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-            margin-bottom: 20px;
-            text-align: center;
-        }
+.sidebar a:hover {
+background: rgba(255, 255, 255, 0.15);
+}
 
-        .sidebar-logo img {
-            width: 100%;
-            height: auto;
-            max-width: 200px;
-            display: block;
-            margin: 0 auto;
-        }
+.sidebar a.active {
+background: rgba(255, 255, 255, 0.25);
+border-left: 4px solid #ffffff;
+}
 
-        .sidebar a {
-            display: block;
-            padding: 15px 20px;
-            color: #ffffff;
-            text-decoration: none;
-            transition: background 0.3s;
-        }
+.logout-btn {
+margin: 20px;
+padding: 10px 20px;
+background: #e74c3c;
+color: white;
+border: none;
+border-radius: 4px;
+cursor: pointer;
+width: calc(100% - 40px);
+text-align: center;
+display: block;
+text-decoration: none;
+}
 
-        .sidebar a:hover {
-            background: rgba(255, 255, 255, 0.15);
-        }
+.logout-btn:hover {
+background: #c0392b;
+}
 
-        .sidebar a.active {
-            background: rgba(255, 255, 255, 0.25);
-            border-left: 4px solid #ffffff;
-        }
+.main-content {
+margin-left: 250px;
+padding: 30px;
+flex: 1;
+width: calc(100% - 250px);
+}
 
-        .logout-btn {
-            margin: 20px;
-            padding: 10px 20px;
-            background: #e74c3c;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            width: calc(100% - 40px);
-            text-align: center;
-            display: block;
-            text-decoration: none;
-        }
+.container {
+max-width: 1200px;
+background: #fff;
+padding: 30px;
+border-radius: 8px;
+box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
+}
 
-        .logout-btn:hover {
-            background: #c0392b;
-        }
+h1 {
+color: #333;
+margin-bottom: 20px;
+padding-bottom: 10px;
+border-bottom: 2px solid #3498db;
+}
 
-        .main-content {
-            margin-left: 250px;
-            padding: 30px;
-            flex: 1;
-            width: calc(100% - 250px);
-        }
+.alert {
+padding: 15px;
+margin-bottom: 20px;
+border-radius: 4px;
+}
 
-        .container {
-            max-width: 1200px;
-            background: #fff;
-            padding: 30px;
-            border-radius: 8px;
-            box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
-        }
+.alert-success {
+background: #d4edda;
+color: #155724;
+border: 1px solid #c3e6cb;
+}
 
-        h1 {
-            color: #333;
-            margin-bottom: 20px;
-            padding-bottom: 10px;
-            border-bottom: 2px solid #3498db;
-        }
-
-        .alert {
-            padding: 15px;
-            margin-bottom: 20px;
-            border-radius: 4px;
-        }
-
-        .alert-success {
-            background: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
-        }
-
-        .alert-error {
-            background: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
-        }
-    </style>
-    {% block extra_styles %}{% endblock %}
+.alert-error {
+background: #f8d7da;
+color: #721c24;
+border: 1px solid #f5c6cb;
+}
+</style>
+{% block extra_styles %}{% endblock %}
 </head>
 
 </div>

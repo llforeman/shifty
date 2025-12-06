@@ -354,6 +354,105 @@ def delete_activity(id):
     db.session.commit()
     return redirect(url_for('activities_page'))
 
+@app.route('/weekly_calendar')
+@login_required
+def weekly_calendar():
+    # Dates
+    today = date.today()
+    start_str = request.args.get('start_date')
+    if start_str:
+        start_date = datetime.strptime(start_str, '%Y-%m-%d').date()
+    else:
+        # Start on Monday of current week
+        start_date = today - timedelta(days=today.weekday())
+        
+    end_date = start_date + timedelta(days=6)
+    
+    # Navigation
+    prev_week = (start_date - timedelta(days=7)).strftime('%Y-%m-%d')
+    next_week = (start_date + timedelta(days=7)).strftime('%Y-%m-%d')
+    
+    # 1. Get Shifts
+    shifts = Shift.query.filter(
+        Shift.pediatrician_id == current_user.pediatrician_id,
+        Shift.date >= start_date,
+        Shift.date <= end_date
+    ).all()
+    
+    # 2. Get Activities
+    # Fetch all user activities (we filter recurrence manually)
+    raw_activities = Activity.query.filter_by(user_id=current_user.id).all()
+    
+    # 3. Build Hourly Grid
+    # Structure: events_by_day[0..6] = [ {title, start_hour, end_hour, type='shift'|'activity', place} ]
+    events_by_day = {i: [] for i in range(7)}
+    
+    # Process Shifts
+    for shift in shifts:
+        day_idx = (shift.date - start_date).days
+        if 0 <= day_idx <= 6:
+            # Weekday: 17:00 - 24:00 (5pm-12am) = 7 hours
+            # Weekend: 09:00 - 24:00 (9am-12am) = 15 hours
+            is_weekend = (shift.date.weekday() >= 5) # 5=Sat, 6=Sun
+            
+            s_hour = 9 if is_weekend else 17
+            e_hour = 24
+            
+            events_by_day[day_idx].append({
+                'title': 'Guardia',
+                'place': 'Hospital',
+                'start_hour': s_hour,
+                'end_hour': e_hour,
+                'type': 'shift',
+                'color': '#48bb78' # Green
+            })
+            
+    # Process Activities
+    for act in raw_activities:
+        # Determine if activity occurs in this week
+        act_dates = []
+        
+        if act.recurrence_type == 'once':
+            d = act.start_time.date()
+            if start_date <= d <= end_date:
+                act_dates.append(d)
+        
+        elif act.recurrence_type == 'weekly':
+            # Find date of this weekday in current week
+            # act.recurrence_day (0=Mon)
+            # start_date is Monday (0)
+            target_date = start_date + timedelta(days=act.recurrence_day)
+            
+            # Check end date
+            if (not act.recurrence_end_date or target_date <= act.recurrence_end_date) and target_date >= act.start_time.date():
+                act_dates.append(target_date)
+                
+        for d in act_dates:
+            day_idx = (d - start_date).days
+            s_hour = act.start_time.hour
+            e_hour = act.end_time.hour + (act.end_time.minute / 60.0)
+            if e_hour == 0: e_hour = 24 # Handle midnight end
+            
+            events_by_day[day_idx].append({
+                'title': act.name,
+                'place': act.place,
+                'start_hour': s_hour,
+                'end_hour': e_hour,
+                'type': 'activity',
+                'color': '#4299e1' # Blue
+            })
+
+    days = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
+    week_dates = [(start_date + timedelta(days=i)) for i in range(7)]
+    
+    return render_template('weekly_calendar.html', 
+                           start_date=start_date,
+                           week_dates=week_dates,
+                           days=days,
+                           events_by_day=events_by_day,
+                           prev_week=prev_week,
+                           next_week=next_week)
+
 # -----------------
 # 2. DATABASE INITIALIZATION (Run this once to create tables)
 # -----------------

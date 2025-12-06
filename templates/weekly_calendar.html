@@ -1,0 +1,187 @@
+{% extends "base.html" %}
+
+{% block title %}Agenda Semanal - Shifty{% endblock %}
+
+{% block extra_styles %}
+<style>
+    .weekly-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+        background: white;
+        padding: 15px;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    }
+
+    .nav-btn {
+        background-color: #3498db;
+        color: white;
+        padding: 8px 15px;
+        text-decoration: none;
+        border-radius: 4px;
+        font-weight: bold;
+    }
+
+    .calendar-wrapper {
+        display: flex;
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        overflow: hidden;
+        position: relative;
+    }
+
+    /* Time labels column */
+    .time-column {
+        width: 60px;
+        flex-shrink: 0;
+        border-right: 1px solid #eee;
+        background: #f8fafc;
+    }
+
+    .time-slot-label {
+        height: 50px;
+        /* 1 hour height */
+        border-bottom: 1px solid #f1f1f1;
+        text-align: center;
+        font-size: 0.75em;
+        color: #888;
+        padding-top: 5px;
+        box-sizing: border-box;
+    }
+
+    /* Days columns container */
+    .days-grid {
+        flex: 1;
+        display: flex;
+        overflow-x: auto;
+    }
+
+    .day-column {
+        flex: 1;
+        min-width: 100px;
+        border-right: 1px solid #eee;
+        position: relative;
+    }
+
+    .day-header {
+        height: 50px;
+        background: #f1f5f9;
+        text-align: center;
+        padding: 10px;
+        border-bottom: 1px solid #ddd;
+        font-weight: bold;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+    }
+
+    .day-header .date {
+        display: block;
+        font-size: 0.8em;
+        color: #666;
+        font-weight: normal;
+    }
+
+    .grid-bg-hour {
+        height: 50px;
+        /* Must match time-slot-label height */
+        border-bottom: 1px solid #f8f9fa;
+        box-sizing: border-box;
+    }
+
+    .event-card {
+        position: absolute;
+        left: 2px;
+        right: 2px;
+        border-radius: 4px;
+        padding: 4px;
+        color: white;
+        font-size: 0.8em;
+        overflow: hidden;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+        z-index: 5;
+    }
+
+    .event-title {
+        font-weight: bold;
+        display: block;
+    }
+
+    .event-time {
+        font-size: 0.85em;
+        opacity: 0.9;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="weekly-header">
+    <a href="{{ url_for('weekly_calendar', start_date=prev_week) }}" class="nav-btn">&larr; Anterior</a>
+    <h2 style="margin: 0;">Semana del {{ start_date.strftime('%d/%m') }}</h2>
+    <a href="{{ url_for('weekly_calendar', start_date=next_week) }}" class="nav-btn">Siguiente &rarr;</a>
+</div>
+
+<div class="calendar-wrapper">
+    <!-- Time Column (8am to 12am = 16 hours) -->
+    <div class="time-column">
+        <div style="height: 50px;"></div> <!-- Spacer for header -->
+        {% for h in range(8, 25) %}
+        <div class="time-slot-label">
+            {{ '%02d' % h }}:00
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Days Grid -->
+    <div class="days-grid">
+        {% for day_idx in range(7) %}
+        <div class="day-column">
+            <div class="day-header">
+                {{ days[day_idx] }}
+                <span class="date">{{ week_dates[day_idx].strftime('%d/%m') }}</span>
+            </div>
+
+            <!-- Grid Lines Background -->
+            {% for h in range(8, 25) %}
+            <div class="grid-bg-hour"></div>
+            {% endfor %}
+
+            <!-- Events -->
+            {% for event in events_by_day[day_idx] %}
+            {% if event.end_hour > 8 and event.start_hour < 24 %} {% set start=event.start_hour if event.start_hour>= 8
+                else 8 %}
+                {% set end = event.end_hour if event.end_hour <= 24 else 24 %} {% set duration=end - start %} {% set
+                    top=(start - 8) * 50 %} <!-- 50px per hour, starting at 8am -->
+                    {% set height = duration * 50 %}
+
+                    <div class="event-card"
+                        style="top: {{ top + 50 }}px; height: {{ height }}px; background-color: {{ event.color }};">
+                        <span class="event-title">{{ event.title }}</span>
+                        <span class="event-time">
+                            {{ '%02d:00' % event.start_hour|int }} - {{ '%02d:00' % event.end_hour|int }}
+                        </span>
+                        {% if event.place %}
+                        <div style="font-size: 0.8em; margin-top: 2px;">📍 {{ event.place }}</div>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                    {% endfor %}
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<div style="margin-top: 20px; display: flex; gap: 20px; justify-content: center;">
+    <div style="display: flex; align-items: center; gap: 5px;">
+        <div style="width: 15px; height: 15px; background: #48bb78; border-radius: 3px;"></div>
+        <span>Guardias</span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 5px;">
+        <div style="width: 15px; height: 15px; background: #4299e1; border-radius: 3px;"></div>
+        <span>Mis Actividades</span>
+    </div>
+</div>
+{% endblock %}
