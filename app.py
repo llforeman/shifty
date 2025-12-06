@@ -354,6 +354,24 @@ with app.app_context():
     try:
         db.create_all()
         print("Database tables created.")
+        
+        # AUTO-MIGRATION: Add recipient_id to chat_message if it doesn't exist
+        try:
+            from sqlalchemy import inspect
+            inspector = inspect(db.engine)
+            columns = [c['name'] for c in inspector.get_columns('chat_message')]
+            
+            if 'recipient_id' not in columns:
+                print("[MIGRATION] Adding recipient_id column to chat_message...")
+                with db.engine.connect() as conn:
+                    conn.execute(db.text("ALTER TABLE chat_message ADD COLUMN recipient_id INTEGER"))
+                    conn.commit()
+                print("[MIGRATION] Successfully added recipient_id column!")
+            else:
+                print("[MIGRATION] recipient_id column already exists, skipping migration.")
+        except Exception as e:
+            print(f"[MIGRATION] Migration check failed (safe to ignore if table doesn't exist yet): {e}")
+            
     except Exception as e:
         print(f"Database initialization skipped: {e}")
 
