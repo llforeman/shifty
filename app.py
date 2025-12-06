@@ -848,7 +848,15 @@ def my_prefs():
 @login_required
 def logout():
     logout_user()
+    logout_user()
     return redirect(url_for('login'))
+
+@app.route('/prefs/selection')
+@login_required
+@role_required('manager')
+def preferences_view_selection():
+    pediatricians = Pediatrician.query.order_by(Pediatrician.name).all()
+    return render_template('preferences_selection.html', pediatricians=pediatricians)
 
 @app.route('/manager_config', methods=['GET', 'POST'])
 @login_required
