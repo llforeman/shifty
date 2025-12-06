@@ -740,6 +740,15 @@ def calendar_view(year=None, month=None):
         
     month_name = date(year, month, 1).strftime('%B')
     
+    return render_template('calendar.html', 
+                           year=year, month=month, month_name=month_name,
+                           month_calendar=cal, shifts=shifts_by_day,
+                           prev_year=prev_year, prev_month=prev_month,
+                           next_year=next_year, next_month=next_month,
+                           next_shift_date=next_shift_date,
+                           is_draft=is_draft,
+                           current_user=current_user)
+
 @app.route('/api/swap_shifts', methods=['POST'])
 @login_required
 @role_required('manager')
