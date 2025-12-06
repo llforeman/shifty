@@ -131,6 +131,24 @@
 
     {% for week in month_calendar %}
     {% for day in week %}
+    {% if day == 0 %}
+    <div class="day-cell empty-cell"></div>
+    {% else %}
+    <div class="day-cell" data-date="{{ year }}-{{ '%02d' % month }}-{{ '%02d' % day }}">
+        <span class="day-number">{{ day }}</span>
+        {% if shifts.get(day) %}
+        {% for shift in shifts[day] %}
+        <div class="shift-item {{ 'my-shift' if current_user.pediatrician_id == shift.pediatrician_id else '' }}"
+            data-shift-id="{{ shift.id }}" data-ped-id="{{ shift.pediatrician_id }}" {% if current_user.role=='manager'
+            or (current_user.pediatrician_id==shift.pediatrician_id) %}draggable="true" style="cursor: grab;" {% endif
+            %}>
+            {{ shift.pediatrician.name }}
+        </div>
+        {% endfor %}
+        {% endif %}
+    </div>
+    {% endif %}
+    {% endfor %}
     {% endfor %}
 </div>
 
