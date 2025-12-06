@@ -175,6 +175,59 @@ class ShiftSwapRequest(db.Model):
     def __repr__(self):
         return f"<GlobalConfig {self.key}={self.value}>"
 
+class ChatMessage(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    message = db.Column(db.Text, nullable=False)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    user = db.relationship('User', backref='messages')
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'user': self.user.username,
+            'message': self.message,
+            'timestamp': self.timestamp.strftime('%Y-%m-%d %H:%M:%S'),
+            'is_me': False # Will be set dynamically in API
+        }
+
+@app.route('/chat')
+@login_required
+def chat_page():
+    return render_template('chat.html')
+
+@app.route('/api/messages', methods=['GET'])
+@login_required
+def get_messages():
+    # Get last 50 messages
+    msgs = ChatMessage.query.order_by(ChatMessage.timestamp.desc()).limit(50).all()
+    # Reverse to show oldest first
+    msgs = msgs[::-1]
+    
+    result = []
+    for m in msgs:
+        d = m.to_dict()
+        d['is_me'] = (m.user_id == current_user.id)
+        result.append(d)
+        
+    return jsonify(result)
+
+@app.route('/api/messages', methods=['POST'])
+@login_required
+def post_message():
+    data = request.json
+    content = data.get('message')
+    
+    if not content:
+        return jsonify({'status': 'error', 'message': 'Empty message'}), 400
+        
+    msg = ChatMessage(user_id=current_user.id, message=content)
+    db.session.add(msg)
+    db.session.commit()
+    
+    return jsonify({'status': 'success', 'message': 'Sent'})
+
 # -----------------
 # 2. DATABASE INITIALIZATION (Run this once to create tables)
 # -----------------
