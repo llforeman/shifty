@@ -778,18 +778,6 @@ def calendar_view(year=None, month=None):
     
     return render_template('calendar.html', 
                            year=year, month=month, month_name=month_name,
-                           month_calendar=cal, shifts=shifts_by_day,
-                           prev_year=prev_year, prev_month=prev_month,
-                           next_year=next_year, next_month=next_month,
-                           next_shift_date=next_shift_date,
-                           is_draft=is_draft,
-                           current_user=current_user)
-
-@app.route('/api/request_swap', methods=['POST'])
-@login_required
-def request_swap():
-    data = request.json
-    source_shift_id = data.get('source_shift_id')
     target_shift_id = data.get('target_shift_id')
     
     if not source_shift_id or not target_shift_id:
