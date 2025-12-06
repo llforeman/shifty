@@ -164,6 +164,42 @@ class DraftShift(db.Model):
     def __repr__(self):
         return f"<DraftShift {self.pediatrician_id} on {self.date}>"
 
+class ShiftSwapRequest(db.Model):
+    __tablename__ = 'shift_swap_request'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    requester_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    # The shift the requester wants to GIVE UP
+    requester_shift_id = db.Column(db.Integer, db.ForeignKey('shift.id'), nullable=False)
+    
+    target_user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    # The shift the requester wants to TAKE (or None if just giving up? No, requirements say swap)
+    target_shift_id = db.Column(db.Integer, db.ForeignKey('shift.id'), nullable=False)
+    
+    # Status: 'pending_peer', 'pending_admin', 'approved', 'rejected'
+    status = db.Column(db.String(50), default='pending_peer')
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    requester = db.relationship('User', foreign_keys=[requester_id], backref='sent_swaps')
+    target_user = db.relationship('User', foreign_keys=[target_user_id], backref='received_swaps')
+    requester_shift = db.relationship('Shift', foreign_keys=[requester_shift_id])
+    target_shift = db.relationship('Shift', foreign_keys=[target_shift_id])
+
+class Notification(db.Model):
+    __tablename__ = 'notification'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    message = db.Column(db.String(255), nullable=False)
+    link = db.Column(db.String(255)) # e.g., /notifications
+    is_read = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    user = db.relationship('User', backref='notifications')
+
+    def __repr__(self):
+        return f"<Notification {self.user_id}: {self.message}>"
+
 class GlobalConfig(db.Model):
     __tablename__ = 'global_config'
     
@@ -749,85 +785,172 @@ def calendar_view(year=None, month=None):
                            is_draft=is_draft,
                            current_user=current_user)
 
-@app.route('/api/swap_shifts', methods=['POST'])
+@app.route('/api/request_swap', methods=['POST'])
 @login_required
-@role_required('manager')
-def swap_shifts():
+def request_swap():
     data = request.json
-    source_id = data.get('source_id')
-    target_id = data.get('target_id') # Optional: ID of shift being swapped with
-    target_date_str = data.get('target_date') # Required: Date to move/swap to
-    mode = data.get('mode') # 'draft' or 'live'
+    source_shift_id = data.get('source_shift_id')
+    target_shift_id = data.get('target_shift_id')
     
-    if not source_id or not target_date_str:
-        return jsonify({'status': 'error', 'message': 'Missing required fields'}), 400
-        
+    if not source_shift_id or not target_shift_id:
+        return jsonify({'status': 'error', 'message': 'Missing shift IDs'}), 400
+
     try:
-        ModelClass = DraftShift if mode == 'draft' else Shift
-        target_date = date.fromisoformat(target_date_str)
+        # Verify ownership
+        source_shift = db.session.get(Shift, source_shift_id)
+        target_shift = db.session.get(Shift, target_shift_id)
         
-        # Get source shift
-        source_shift = db.session.get(ModelClass, source_id)
-        if not source_shift:
-            return jsonify({'status': 'error', 'message': 'Source shift not found'}), 404
-            
-        # CASE 1: Swapping with an existing shift
-        if target_id:
-            target_shift = db.session.get(ModelClass, target_id)
-            if not target_shift:
-                return jsonify({'status': 'error', 'message': 'Target shift not found'}), 404
-            
-            # Swap pediatricians
-            # Temp var to avoid unique constraint if we just did direct assignment? 
-            # Actually, we can just swap IDs. 
-            # But we must be careful about the constraint "One shift per day per ped".
-            # Source: Ped A, Date 1. Target: Ped B, Date 2.
-            # Result: Ped B, Date 1. Ped A, Date 2.
-            # Check if Ped B already has shift on Date 1 (other than the one we are creating?)
-            # Since source_shift is on Date 1, and we are putting Ped B there... 
-            # wait, if Source and Target are on the SAME day, we just swap Peds, no date collision issue (since we are swapping the peds who presumably only have 1 shift).
-            # If different days:
-            # Ped A (Day 1) <-> Ped B (Day 2)
-            # Valid if: Ped B has no OTHER shift on Day 1. Ped A has no OTHER shift on Day 2.
-            
-            # Check for conflicts
-            # Check if Ped B has shift on Source Date (excluding Source Shift - but Source Shift is currently Ped A, so check if Ped B exists on Source Date)
-            conflict_b = ModelClass.query.filter_by(pediatrician_id=target_shift.pediatrician_id, date=source_shift.date).first()
-            if conflict_b and conflict_b.id != source_shift.id: # Should represent "Is there a shift for Ped B on Date 1?"
-                 # Wait, if we are swapping assignments, conflict_b would be a Different shift record.
-                 # If conflict_b exists, Ped B already works on Day 1. So Ped B cannot take Source Shift (Day 1).
-                 return jsonify({'status': 'error', 'message': f'Conflict: {target_shift.pediatrician.name} already has a shift on {source_shift.date}'}), 400
+        if not source_shift or not target_shift:
+             return jsonify({'status': 'error', 'message': 'Shift not found'}), 404
+             
+        # Check if current user owns the source shift
+        if current_user.pediatrician_id != source_shift.pediatrician_id:
+             return jsonify({'status': 'error', 'message': 'You can only swap your own shifts'}), 403
+             
+        # Find target user
+        target_ped_id = target_shift.pediatrician_id
+        # Assuming one user per pediatrician for simplicity, or notify all users linked to that ped
+        target_user = User.query.filter_by(pediatrician_id=target_ped_id).first()
+        
+        if not target_user:
+             return jsonify({'status': 'error', 'message': 'Target pediatrician has no linked user'}), 400
 
-            # Check if Ped A has shift on Target Date
-            conflict_a = ModelClass.query.filter_by(pediatrician_id=source_shift.pediatrician_id, date=target_shift.date).first()
-            if conflict_a and conflict_a.id != target_shift.id:
-                 return jsonify({'status': 'error', 'message': f'Conflict: {source_shift.pediatrician.name} already has a shift on {target_shift.date}'}), 400
-
-            # Perform Swap
-            p1 = source_shift.pediatrician_id
-            p2 = target_shift.pediatrician_id
-            
-            source_shift.pediatrician_id = p2
-            target_shift.pediatrician_id = p1
-            
-            db.session.commit()
-            return jsonify({'status': 'success', 'message': 'Shifts swapped successfully'})
-
-        # CASE 2: Moving to an empty slot
-        else:
-            # Check if source pediatrician already has a shift on target date
-            existing = ModelClass.query.filter_by(pediatrician_id=source_shift.pediatrician_id, date=target_date).first()
-            if existing:
-                 return jsonify({'status': 'error', 'message': f'Conflict: {source_shift.pediatrician.name} already has a shift on {target_date}'}), 400
-            
-            # Move shift
-            source_shift.date = target_date
-            db.session.commit()
-            return jsonify({'status': 'success', 'message': 'Shift moved successfully'})
-
+        # Create Request
+        swap_req = ShiftSwapRequest(
+            requester_id=current_user.id,
+            requester_shift_id=source_shift.id,
+            target_user_id=target_user.id,
+            target_shift_id=target_shift.id,
+            status='pending_peer'
+        )
+        db.session.add(swap_req)
+        
+        # Create Notification for Target
+        msg = f"User {current_user.username} wants to swap their shift on {source_shift.date} with your shift on {target_shift.date}."
+        notif = Notification(
+            user_id=target_user.id,
+            message=msg,
+            link=url_for('notifications_page')
+        )
+        db.session.add(notif)
+        
+        db.session.commit()
+        return jsonify({'status': 'success', 'message': 'Swap request sent!'})
+        
     except Exception as e:
         db.session.rollback()
         return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@app.route('/notifications')
+@login_required
+def notifications_page():
+    # Fetch notifications
+    notifs = Notification.query.filter_by(user_id=current_user.id).order_by(Notification.created_at.desc()).all()
+    
+    # Fetch pending swap requests where I am the target
+    pending_swaps = ShiftSwapRequest.query.filter_by(target_user_id=current_user.id, status='pending_peer').all()
+    
+    return render_template('notifications.html', notifications=notifs, pending_swaps=pending_swaps)
+
+@app.route('/api/respond_swap', methods=['POST'])
+@login_required
+def respond_swap():
+    data = request.json
+    request_id = data.get('request_id')
+    action = data.get('action') # 'accept' or 'reject'
+    
+    if not request_id or not action:
+         return jsonify({'status': 'error', 'message': 'Missing data'}), 400
+         
+    try:
+        req = db.session.get(ShiftSwapRequest, request_id)
+        if not req:
+            return jsonify({'status': 'error', 'message': 'Request not found'}), 404
+            
+        if req.target_user_id != current_user.id:
+            return jsonify({'status': 'error', 'message': 'Unauthorized'}), 403
+            
+        if action == 'reject':
+            req.status = 'rejected'
+            # Notify requester
+            db.session.add(Notification(
+                user_id=req.requester_id,
+                message=f"Your swap request for {req.target_shift.date} was rejected.",
+                link='/notifications'
+            ))
+            db.session.commit()
+            return jsonify({'status': 'success', 'message': 'Request rejected'})
+            
+        elif action == 'accept':
+            req.status = 'pending_admin'
+            # Notify Admin(s)
+            admins = User.query.filter_by(role='manager').all()
+            for admin in admins:
+                db.session.add(Notification(
+                    user_id=admin.id,
+                    message=f"Swap Request Pending Confirmation: {req.requester.username} <-> {current_user.username}",
+                    link=url_for('admin_swaps_page')
+                ))
+            db.session.commit()
+            return jsonify({'status': 'success', 'message': 'Request accepted. Waiting for Admin confirmation.'})
+            
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@app.route('/admin/swaps')
+@login_required
+@role_required('manager')
+def admin_swaps_page():
+    pending_swaps = ShiftSwapRequest.query.filter_by(status='pending_admin').all()
+    return render_template('admin_swaps.html', pending_swaps=pending_swaps)
+
+@app.route('/api/admin_confirm_swap', methods=['POST'])
+@login_required
+@role_required('manager')
+def admin_confirm_swap():
+    data = request.json
+    request_id = data.get('request_id')
+    action = data.get('action') # 'approve' or 'reject'
+    
+    try:
+        req = db.session.get(ShiftSwapRequest, request_id)
+        if not req: return jsonify({'status': 'error', 'message': 'Not found'}), 404
+        
+        if action == 'reject':
+            req.status = 'rejected_by_admin'
+            # Notify both
+            create_notif(req.requester_id, "Admin rejected your swap request.")
+            create_notif(req.target_user_id, "Admin rejected the swap request.")
+            db.session.commit()
+            return jsonify({'status': 'success', 'message': 'Rejected'})
+            
+        elif action == 'approve':
+            # EXECUTE SWAP
+            s1 = req.requester_shift
+            s2 = req.target_shift
+            
+            p1 = s1.pediatrician_id
+            p2 = s2.pediatrician_id
+            
+            s1.pediatrician_id = p2
+            s2.pediatrician_id = p1
+            
+            req.status = 'approved'
+            
+            create_notif(req.requester_id, "Swap Approved! Calendar updated.")
+            create_notif(req.target_user_id, "Swap Approved! Calendar updated.")
+            
+            db.session.commit()
+            return jsonify({'status': 'success', 'message': 'Swap Executed!'})
+            
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+def create_notif(user_id, msg):
+    db.session.add(Notification(user_id=user_id, message=msg, link='/notifications'))
+    
 
 if __name__ == '__main__':
     # Initialize database before running the app

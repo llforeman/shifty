@@ -131,7 +131,8 @@
         <span class="day-number">{{ day }}</span>
         {% if shifts.get(day) %}
         {% for shift in shifts[day] %}
-        <div class="shift-item" {% if current_user.role=='manager' %} draggable="true" data-shift-id="{{ shift.id }}"
+        <div class="shift-item" {% if current_user.role=='manager' or
+            (current_user.pediatrician_id==shift.pediatrician_id) %} draggable="true" data-shift-id="{{ shift.id }}"
             data-ped-id="{{ shift.pediatrician_id }}" style="cursor: grab;" {% endif %}>
             {{ shift.pediatrician.name }}
         </div>
@@ -143,7 +144,7 @@
     {% endfor %}
 </div>
 
-{% if current_user.role == 'manager' %}
+{% if current_user.is_authenticated %}
 <script>
     document.addEventListener('DOMContentLoaded', function () {
         // Prevent default drag behaviors
@@ -217,32 +218,50 @@
                 // Don't do anything if dropped on itself
                 if (shiftId === targetShiftId) return;
 
-                // Perform swap/move
-                fetch('{{ url_for("swap_shifts") }}', {
+                const isManager = {{ 'true' if current_user.role == 'manager' else 'false'
+            }};
+
+        if (isManager) {
+            // ADMIN SWAP LOGIC (Direct Execution)
+            fetch('{{ url_for("swap_shifts") }}', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    source_id: shiftId,
+                    target_id: targetShiftId,
+                    target_date: targetDate,
+                    mode: '{{ "draft" if is_draft else "live" }}'
+                })
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') location.reload();
+                    else alert('Error: ' + data.message);
+                });
+        } else {
+            // USER SWAP REQUEST LOGIC
+            if (!targetShiftId) {
+                alert("Solo puedes intercambiar turnos con otra persona (arrastra sobre otro turno).");
+                return;
+            }
+
+            if (confirm("¿Quieres solicitar un cambio de turno con esta persona?")) {
+                fetch('{{ url_for("request_swap") }}', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        source_id: shiftId,
-                        target_id: targetShiftId,
-                        target_date: targetDate,
-                        mode: '{{ "draft" if is_draft else "live" }}'
+                        source_shift_id: shiftId,
+                        target_shift_id: targetShiftId
                     })
                 })
                     .then(response => response.json())
                     .then(data => {
-                        if (data.status === 'success') {
-                            location.reload();
-                        } else {
-                            alert('Error: ' + data.message);
-                        }
-                    })
-                    .catch(err => {
-                        console.error('Error:', err);
-                        alert('An unexpected error occurred.');
+                        if (data.status === 'success') alert("Solicitud enviada!");
+                        else alert('Error: ' + data.message);
                     });
-            });
+            }
+        }
+    });
         });
     });
 </script>

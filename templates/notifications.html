@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+
+{% block title %}Notificaciones - Shifty{% endblock %}
+
+{% block content %}
+<h2>Notificaciones</h2>
+
+<div class="row">
+    <div class="col-md-6">
+        <h3>Solicitudes de Cambio Pendientes</h3>
+        {% if pending_swaps %}
+        {% for swap in pending_swaps %}
+        <div class="card mb-3">
+            <div class="card-body">
+                <h5 class="card-title">Solicitud de {{ swap.requester.username }}</h5>
+                <p class="card-text">
+                    Quiere cambiar su turno del <strong>{{ swap.requester_shift.date }}</strong>
+                    por tu turno del <strong>{{ swap.target_shift.date }}</strong>.
+                </p>
+                <button class="btn btn-success" onclick="respondSwap({{ swap.id }}, 'accept')">Aceptar</button>
+                <button class="btn btn-danger" onclick="respondSwap({{ swap.id }}, 'reject')">Rechazar</button>
+            </div>
+        </div>
+        {% endfor %}
+        {% else %}
+        <p>No tienes solicitudes pendientes.</p>
+        {% endif %}
+    </div>
+
+    <div class="col-md-6">
+        <h3>Historial</h3>
+        <ul class="list-group">
+            {% for notif in notifications %}
+            <li class="list-group-item">
+                {{ notif.message }}
+                <small class="text-muted d-block">{{ notif.created_at.strftime('%Y-%m-%d %H:%M') }}</small>
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+</div>
+
+<script>
+    function respondSwap(requestId, action) {
+        if (!confirm('¿Estás seguro de que quieres ' + (action === 'accept' ? 'aceptar' : 'rechazar') + ' esta solicitud?')) return;
+
+        fetch('{{ url_for("respond_swap") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                request_id: requestId,
+                action: action
+            })
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    location.reload();
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            });
+    }
+</script>
+{% endblock %}

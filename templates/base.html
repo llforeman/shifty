@@ -137,7 +137,15 @@
         <a href="{{ url_for('calendar_view') }}" class="{% if request.endpoint == 'calendar_view' %}active{% endif %}">
             📅 Calendario
         </a>
+        <a href="{{ url_for('notifications_page') }}"
+            class="{% if request.endpoint == 'notifications_page' %}active{% endif %}">
+            🔔 Notificaciones
+        </a>
         {% if current_user.role == 'manager' %}
+        <a href="{{ url_for('admin_swaps_page') }}"
+            class="{% if request.endpoint == 'admin_swaps_page' %}active{% endif %}">
+            ⚖️ Confirmar Cambios
+        </a>
         <a href="{{ url_for('manager_config') }}"
             class="{% if request.endpoint == 'manager_config' %}active{% endif %}">
             ⚙️ Configuración

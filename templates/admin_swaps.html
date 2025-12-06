@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block title %}Confirmar Cambios - Shifty{% endblock %}
+
+{% block content %}
+<h2>Confirmación de Cambios de Turno</h2>
+<p>Los siguientes cambios han sido aceptados por ambas partes y requieren tu aprobación final.</p>
+
+{% if pending_swaps %}
+{% for swap in pending_swaps %}
+<div class="card mb-3">
+    <div class="card-body">
+        <h5 class="card-title">Cambio Aceptado: {{ swap.requester.username }} <-> {{ swap.target_user.username }}</h5>
+        <p class="card-text">
+            <strong>{{ swap.requester.username }}</strong> (Turno: {{ swap.requester_shift.date }})
+            <br>
+            intercambia con
+            <br>
+            <strong>{{ swap.target_user.username }}</strong> (Turno: {{ swap.target_shift.date }})
+        </p>
+        <button class="btn btn-primary" onclick="adminConfirm({{ swap.id }}, 'approve')">Aprobar y Ejecutar</button>
+        <button class="btn btn-danger" onclick="adminConfirm({{ swap.id }}, 'reject')">Rechazar</button>
+    </div>
+</div>
+{% endfor %}
+{% else %}
+<p>No hay cambios pendientes de confirmación.</p>
+{% endif %}
+
+<script>
+    function adminConfirm(requestId, action) {
+        if (!confirm('Confirma acción: ' + action)) return;
+
+        fetch('{{ url_for("admin_confirm_swap") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                request_id: requestId,
+                action: action
+            })
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    location.reload();
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            });
+    }
+</script>
+{% endblock %}
