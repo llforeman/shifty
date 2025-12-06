@@ -63,6 +63,13 @@
         font-size: 0.9em;
     }
 
+    .shift-item.my-shift {
+        background: #d4edda;
+        color: #155724;
+        border: 1px solid #c3e6cb;
+        font-weight: bold;
+    }
+
     .empty-cell {
         background: #f9f9f9;
         border: none;
@@ -131,9 +138,9 @@
         <span class="day-number">{{ day }}</span>
         {% if shifts.get(day) %}
         {% for shift in shifts[day] %}
-        <div class="shift-item" {% if current_user.role=='manager' or
-            (current_user.pediatrician_id==shift.pediatrician_id) %} draggable="true" data-shift-id="{{ shift.id }}"
-            data-ped-id="{{ shift.pediatrician_id }}" style="cursor: grab;" {% endif %}>
+        <div class="shift-item {{ 'my-shift' if current_user.pediatrician_id == shift.pediatrician_id else '' }}" {% if
+            current_user.role=='manager' or (current_user.pediatrician_id==shift.pediatrician_id) %} draggable="true"
+            data-shift-id="{{ shift.id }}" data-ped-id="{{ shift.pediatrician_id }}" style="cursor: grab;" {% endif %}>
             {{ shift.pediatrician.name }}
         </div>
         {% endfor %}

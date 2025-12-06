@@ -753,9 +753,8 @@ def calendar_view(year=None, month=None):
     ModelClass = DraftShift if is_draft else Shift
     shifts_query = ModelClass.query.filter(ModelClass.date >= start_date, ModelClass.date <= end_date)
     
-    # Regular users only see their own shifts (NOT applicable for draft mode as purely admin)
-    if not is_draft and current_user.role != 'manager' and current_user.pediatrician_id:
-        shifts_query = shifts_query.filter(ModelClass.pediatrician_id == current_user.pediatrician_id)
+    # REMOVED: Regular users only see their own shifts logic. 
+    # Now all users see all shifts to enable swapping.
     
     shifts_list = shifts_query.all()
     
