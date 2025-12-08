@@ -94,8 +94,6 @@
 
     .event-card {
         position: absolute;
-        left: 2px;
-        right: 2px;
         border-radius: 4px;
         padding: 4px;
         color: white;
@@ -119,9 +117,9 @@
 
 {% block content %}
 <div class="weekly-header">
-    <a href="{{ url_for('weekly_calendar', start_date=prev_week) }}" class="nav-btn">&larr; Anterior</a>
+    <a href="{{ url_for('activities_page', start_date=prev_week) }}" class="nav-btn">&larr; Anterior</a>
     <h2 style="margin: 0;">Semana del {{ start_date.strftime('%d/%m') }}</h2>
-    <a href="{{ url_for('weekly_calendar', start_date=next_week) }}" class="nav-btn">Siguiente &rarr;</a>
+    <a href="{{ url_for('activities_page', start_date=next_week) }}" class="nav-btn">Siguiente &rarr;</a>
 </div>
 
 <div class="calendar-wrapper">
@@ -159,8 +157,22 @@
                     top=(start - 8) * 50 %} <!-- 50px per hour, starting at 8am -->
                     {% set height = duration * 50 %}
 
-                    <div class="event-card"
-                        style="top: {{ top + 50 }}px; height: {{ height }}px; background-color: {{ event.color }}; pointer-events: none;">
+                    {% set width = event.width|default(100) %}
+                    {% set left = event.left|default(0) %}
+
+                    <!-- Event Card -->
+                    <div class="event-card" {% if event.type=='activity' %} onclick="openEditActivityModal({
+                            id: '{{ event.id }}',
+                            typeId: '{{ event.activity_type_id }}',
+                            start: '{{ event.start_iso }}',
+                            end: '{{ event.end_iso }}',
+                            recurrence: '{{ event.recurrence_type }}' 
+                        })"
+                        style="top: {{ top + 50 }}px; height: {{ height }}px; background-color: {{ event.color }}; 
+                               width: calc({{ width }}% - 4px); left: calc({{ left }}% + 2px); pointer-events: auto; cursor: pointer;"
+                        {% else %} style="top: {{ top + 50 }}px; height: {{ height }}px; background-color: {{ event.color }}; 
+                               width: calc({{ width }}% - 4px); left: calc({{ left }}% + 2px); pointer-events: none;"
+                        {% endif %}>
                         <span class="event-title">{{ event.title }}</span>
                         <span class="event-time">
                             {{ '%02d:00' % event.start_hour|int }} - {{ '%02d:00' % event.end_hour|int }}
@@ -187,18 +199,21 @@
     </div>
 </div>
 
-<!-- Add Activity Modal -->
+<!-- Add/Edit Activity Modal -->
 <div id="addActivityModal"
     style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
     <div
         style="background: white; padding: 25px; border-radius: 8px; width: 90%; max-width: 400px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-        <h3 style="margin-top: 0;">Añadir Actividad</h3>
-        <form action="{{ url_for('add_activity') }}" method="POST">
+        <h3 id="modalTitle" style="margin-top: 0;">Añadir Actividad</h3>
+
+        <form id="activityForm" action="{{ url_for('add_activity') }}" method="POST">
             <input type="hidden" name="next" value="{{ request.url }}">
+            <input type="hidden" name="activity_id" id="modal_activity_id">
 
             <div class="form-group">
                 <label>Tipo de Actividad</label>
-                <select name="activity_type_id" required style="width: 100%; padding: 8px; margin-bottom: 10px;">
+                <select name="activity_type_id" id="modal_activity_type" required
+                    style="width: 100%; padding: 8px; margin-bottom: 10px;">
                     <option value="" disabled selected>Selecciona un tipo</option>
                     {% for type in activity_types %}
                     <option value="{{ type.id }}">{{ type.name }}</option>
@@ -220,35 +235,49 @@
 
             <div class="form-group">
                 <label>Repetición</label>
-                <select name="recurrence_type" style="width: 100%; padding: 8px; margin-bottom: 15px;">
+                <select name="recurrence_type" id="modal_recurrence"
+                    style="width: 100%; padding: 8px; margin-bottom: 15px;">
                     <option value="once">Solo una vez</option>
                     <option value="weekly">Semanalmente</option>
                 </select>
             </div>
 
-            <div style="display: flex; gap: 10px; justify-content: flex-end;">
-                <button type="button" onclick="closeAddActivityModal()"
-                    style="padding: 8px 15px; background: #ccc; border: none; border-radius: 4px; cursor: pointer;">Cancelar</button>
-                <button type="submit"
-                    style="padding: 8px 15px; background: #48bb78; color: white; border: none; border-radius: 4px; cursor: pointer;">Guardar</button>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <!-- Left side: Delete button (only visible in edit mode) -->
+                <button type="button" id="btnDelete" onclick="deleteActivity()"
+                    style="display:none; padding: 8px 15px; background: #e53e3e; color: white; border: none; border-radius: 4px; cursor: pointer;">Eliminar</button>
+
+                <!-- Right side: Cancel/Save -->
+                <div style="display: flex; gap: 10px; margin-left: auto;">
+                    <button type="button" onclick="closeAddActivityModal()"
+                        style="padding: 8px 15px; background: #ccc; border: none; border-radius: 4px; cursor: pointer;">Cancelar</button>
+                    <button type="submit"
+                        style="padding: 8px 15px; background: #48bb78; color: white; border: none; border-radius: 4px; cursor: pointer;">Guardar</button>
+                </div>
             </div>
+        </form>
+
+        <!-- Hidden Delete Form -->
+        <form id="deleteForm" method="POST" style="display: none;">
+            <input type="hidden" name="next" value="{{ request.url }}">
         </form>
     </div>
 </div>
 
 <script>
     function openAddActivityModal(dateStr, hourStr) {
-        // Construct ISO datetime string for local time
-        // dateStr is YYYY-MM-DD, hourStr is HH
-        const startDateTime = `${dateStr}T${hourStr}:00`;
+        // RESET FORM for "Add" mode
+        document.getElementById('modalTitle').innerText = "Añadir Actividad";
+        document.getElementById('modal_activity_id').value = "";
+        document.getElementById('modal_activity_type').value = "";
+        document.getElementById('modal_recurrence').value = "once";
+        document.getElementById('btnDelete').style.display = 'none';
 
-        // Calculate end time (start + 1 hour)
-        // We'll trust the user's browser/OS for timezone handling for now 
-        // effectively treating input as "local wall time"
+        // Construct ISO datetime string
+        const startDateTime = `${dateStr}T${hourStr}:00`;
         let startDate = new Date(startDateTime);
         let endDate = new Date(startDate.getTime() + 60 * 60 * 1000); // Add 1 hour
 
-        // Format for datetime-local input: YYYY-MM-DDTHH:MM
         function formatDT(d) {
             const pad = (n) => n.toString().padStart(2, '0');
             return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
@@ -259,6 +288,36 @@
 
         const modal = document.getElementById('addActivityModal');
         modal.style.display = 'flex';
+    }
+
+    function openEditActivityModal(dataset) {
+        // dataset is a JS object passed from onclick
+
+        // Stop propagation (though pure JS call handles it, ensure event is available if needed)
+        if (window.event) window.event.stopPropagation();
+
+        // POPULATE FORM for "Edit" mode
+        document.getElementById('modalTitle').innerText = "Modificar Actividad";
+        document.getElementById('modal_activity_id').value = dataset.id;
+        document.getElementById('modal_activity_type').value = dataset.typeId;
+        document.getElementById('modal_start_time').value = dataset.start;
+        document.getElementById('modal_end_time').value = dataset.end;
+        document.getElementById('modal_recurrence').value = dataset.recurrence;
+
+        document.getElementById('btnDelete').style.display = 'block';
+
+        // Setup Delete Action
+        const deleteForm = document.getElementById('deleteForm');
+        deleteForm.action = "/activities/delete/" + dataset.id;
+
+        const modal = document.getElementById('addActivityModal');
+        modal.style.display = 'flex';
+    }
+
+    function deleteActivity() {
+        if (confirm("¿Estás seguro de que quieres eliminar esta actividad?")) {
+            document.getElementById('deleteForm').submit();
+        }
     }
 
     function closeAddActivityModal() {

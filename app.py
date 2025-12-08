@@ -323,59 +323,6 @@ def activities_page():
     # Only show user's own activities + recurring logic will be handled in calendar
     activities = Activity.query.filter_by(user_id=current_user.id).order_by(Activity.start_time).all()
     activity_types = ActivityType.query.order_by(ActivityType.name).all()
-    return render_template('activities.html', activities=activities, activity_types=activity_types)
-
-@app.route('/activities/add', methods=['POST'])
-@login_required
-def add_activity():
-    activity_type_id = request.form.get('activity_type_id')
-    start_time_str = request.form.get('start_time') # "2023-10-30T09:00"
-    end_time_str = request.form.get('end_time')
-    recurrence_type = request.form.get('recurrence_type')
-    next_url = request.form.get('next')
-    
-    if not activity_type_id or not start_time_str or not end_time_str:
-        return "Missing fields", 400
-        
-    start_time = datetime.fromisoformat(start_time_str)
-    end_time = datetime.fromisoformat(end_time_str)
-    
-    recurrence_day = None
-    recurrence_end_date = None
-    
-    if recurrence_type == 'weekly':
-        recurrence_day = start_time.weekday() # 0=Monday
-        recurrence_end_str = request.form.get('recurrence_end_date')
-        if recurrence_end_str:
-            recurrence_end_date = datetime.strptime(recurrence_end_str, '%Y-%m-%d').date()
-            
-    activity = Activity(
-        user_id=current_user.id,
-        activity_type_id=activity_type_id,
-        start_time=start_time,
-        end_time=end_time,
-        recurrence_type=recurrence_type,
-        recurrence_day=recurrence_day,
-        recurrence_end_date=recurrence_end_date
-    )
-    db.session.add(activity)
-    db.session.commit()
-    
-    if next_url:
-        return redirect(next_url)
-    return redirect(url_for('activities_page'))
-
-@app.route('/activities/delete/<int:id>', methods=['POST'])
-@login_required
-def delete_activity(id):
-    activity = Activity.query.filter_by(id=id, user_id=current_user.id).first_or_404()
-    db.session.delete(activity)
-    db.session.commit()
-    return redirect(url_for('activities_page'))
-
-@app.route('/weekly_calendar')
-@login_required
-def weekly_calendar():
     # Fetch activity types for the modal
     activity_types = ActivityType.query.order_by(ActivityType.name).all()
 
@@ -441,8 +388,6 @@ def weekly_calendar():
         
         elif act.recurrence_type == 'weekly':
             # Find date of this weekday in current week
-            # act.recurrence_day (0=Mon)
-            # start_date is Monday (0)
             target_date = start_date + timedelta(days=act.recurrence_day)
             
             # Check end date
@@ -455,14 +400,69 @@ def weekly_calendar():
             e_hour = act.end_time.hour + (act.end_time.minute / 60.0)
             if e_hour == 0: e_hour = 24 # Handle midnight end
             
+            # Helper to format time strings for the form
+            start_iso = datetime.combine(d, act.start_time.time()).strftime('%Y-%m-%dT%H:%M')
+            end_iso = datetime.combine(d, act.end_time.time()).strftime('%Y-%m-%dT%H:%M')
+            if e_hour == 24: # Correction for ISO string if it ends at midnight next day
+                 end_iso = (datetime.combine(d, datetime.min.time()) + timedelta(days=1)).strftime('%Y-%m-%dT%H:%M')
+
             events_by_day[day_idx].append({
-                'title': act.name,
+                'id': act.id,
+                'title': act.activity_type.name if act.activity_type else (act.name or 'Unknown'),
                 'place': act.place,
                 'start_hour': s_hour,
                 'end_hour': e_hour,
                 'type': 'activity',
-                'color': '#4299e1' # Blue
+                'color': '#4299e1', # Blue
+                'activity_type_id': act.activity_type_id,
+                'start_iso': start_iso,
+                'end_iso': end_iso,
+                'recurrence_type': act.recurrence_type
             })
+
+    # 4. Handle Overlaps (Calculate Width and Left)
+    for day_idx in range(7):
+        day_events = events_by_day[day_idx]
+        if not day_events:
+            continue
+            
+        # Sort by start time
+        day_events.sort(key=lambda x: x['start_hour'])
+        
+        # Simple clustering algorithm
+        # We group events that overlap.
+        # Two events overlap if A.start < B.end and B.start < A.end
+        
+        clusters = []
+        current_cluster = []
+        cluster_end = -1
+        
+        for evt in day_events:
+            if not current_cluster:
+                current_cluster.append(evt)
+                cluster_end = evt['end_hour']
+            else:
+                # Check overlap with ANY event in cluster? Or just the cluster range?
+                # User request: "only in case that 2 activities exist at the same time"
+                # If we have [10-12, 10-12, 11-13], they all overlap effectively in a chain.
+                # A simple packing: if start < cluster_end, it belongs to cluster.
+                if evt['start_hour'] < cluster_end:
+                    current_cluster.append(evt)
+                    cluster_end = max(cluster_end, evt['end_hour'])
+                else:
+                    clusters.append(current_cluster)
+                    current_cluster = [evt]
+                    cluster_end = evt['end_hour']
+        if current_cluster:
+            clusters.append(current_cluster)
+            
+        # Assign width and left
+        for cluster in clusters:
+            count = len(cluster)
+            width = 100.0 / count
+            for i, evt in enumerate(cluster):
+                evt['width'] = width
+                evt['left'] = i * width
 
     days = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
     week_dates = [(start_date + timedelta(days=i)) for i in range(7)]
