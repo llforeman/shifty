@@ -476,6 +476,75 @@ def activities_page():
                            next_week=next_week,
                            activity_types=activity_types)
 
+@app.route('/activities/add', methods=['POST'])
+@login_required
+def add_activity():
+    try:
+        activity_id = request.form.get('activity_id')
+        activity_type_id = request.form.get('activity_type_id')
+        start_time_str = request.form.get('start_time')
+        end_time_str = request.form.get('end_time')
+        recurrence_type = request.form.get('recurrence_type', 'once')
+        
+        # Parse Dates
+        start_time = datetime.fromisoformat(start_time_str)
+        end_time = datetime.fromisoformat(end_time_str)
+        
+        if activity_id:
+            # Update existing
+            activity = Activity.query.get_or_404(activity_id)
+            if activity.user_id != current_user.id:
+                abort(403)
+            
+            activity.activity_type_id = activity_type_id
+            activity.start_time = start_time
+            activity.end_time = end_time
+            activity.recurrence_type = recurrence_type
+            # Reset recurring day if needed
+            if recurrence_type == 'weekly':
+                activity.recurrence_day = (start_time.date() - start_time.date()).days # Just 0-6 w.r.t start date? No, logic:
+                # Actually, recurrence_day logic should be stored. 
+                # Ideally, we calculate 0-6 based on the start date weekday.
+                activity.recurrence_day = start_time.weekday()
+            else:
+                 activity.recurrence_day = None
+                 
+        else:
+            # Create new
+            recurrence_day = start_time.weekday() if recurrence_type == 'weekly' else None
+            
+            activity = Activity(
+                user_id=current_user.id,
+                activity_type_id=activity_type_id,
+                start_time=start_time,
+                end_time=end_time,
+                recurrence_type=recurrence_type,
+                recurrence_day=recurrence_day
+            )
+            db.session.add(activity)
+            
+        db.session.commit()
+    except Exception as e:
+        print(f"Error saving activity: {e}")
+        # In production, flash error
+        
+    return redirect(url_for('activities_page'))
+
+@app.route('/activities/delete/<int:id>', methods=['POST'])
+@login_required
+def delete_activity(id):
+    activity = Activity.query.get_or_404(id)
+    if activity.user_id != current_user.id:
+        abort(403)
+        
+    try:
+        db.session.delete(activity)
+        db.session.commit()
+    except Exception as e:
+        print(f"Error deleting activity: {e}")
+        
+    return redirect(url_for('activities_page'))
+
 # -----------------
 # 2. DATABASE INITIALIZATION (Run this once to create tables)
 # -----------------
