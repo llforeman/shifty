@@ -176,6 +176,10 @@
             class="{% if request.endpoint == 'preferences_view_selection' %}active{% endif %}">
             ⚙️ Ver Preferencias
         </a>
+        <a href="{{ url_for('admin_activity_types_page') }}"
+            class="{% if request.endpoint == 'admin_activity_types_page' %}active{% endif %}">
+            🏷️ Tipos de Actividad
+        </a>
         {% endif %}
 
         <a href="{{ url_for('logout') }}" class="logout-btn">Cerrar Sesión</a>

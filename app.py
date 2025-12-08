@@ -229,13 +229,27 @@ class ChatMessage(db.Model):
             'is_me': (self.user_id == current_user.id)
         }
 
+class ActivityType(db.Model):
+    __tablename__ = 'activity_type'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), unique=True, nullable=False)
+    
+    def __repr__(self):
+        return f"<ActivityType {self.name}>"
+
 class Activity(db.Model):
     __tablename__ = 'activity'
     
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    name = db.Column(db.String(100), nullable=False)
-    place = db.Column(db.String(200))
+    # name and place are deprecated but kept effectively nullable for migration safety if needed, 
+    # though we will try to migrate data to ActivityType.
+    name = db.Column(db.String(100), nullable=True) 
+    place = db.Column(db.String(200), nullable=True)
+    
+    activity_type_id = db.Column(db.Integer, db.ForeignKey('activity_type.id'), nullable=True) # Check nullable for migration steps
+    
     start_time = db.Column(db.DateTime, nullable=False)
     end_time = db.Column(db.DateTime, nullable=False)
     recurrence_type = db.Column(db.String(20), default='once')  # 'once' or 'weekly'
@@ -243,20 +257,22 @@ class Activity(db.Model):
     recurrence_end_date = db.Column(db.Date)  # When to stop recurring
     
     user = db.relationship('User', backref='activities')
+    activity_type = db.relationship('ActivityType', backref='activities')
     
     def __repr__(self):
-        return f"<Activity {self.name} for User {self.user_id}>"
+        type_name = self.activity_type.name if self.activity_type else (self.name or 'Unknown')
+        return f"<Activity {type_name} for User {self.user_id}>"
     
     def to_dict(self):
         return {
             'id': self.id,
-            'name': self.name,
-            'place': self.place,
+            'name': self.activity_type.name if self.activity_type else self.name,
             'start_time': self.start_time.strftime('%Y-%m-%d %H:%M:%S'),
             'end_time': self.end_time.strftime('%Y-%m-%d %H:%M:%S'),
             'recurrence_type': self.recurrence_type,
             'recurrence_day': self.recurrence_day,
-            'recurrence_end_date': self.recurrence_end_date.strftime('%Y-%m-%d') if self.recurrence_end_date else None
+            'recurrence_end_date': self.recurrence_end_date.strftime('%Y-%m-%d') if self.recurrence_end_date else None,
+            'activity_type_id': self.activity_type_id
         }
 
 @app.route('/chat')
@@ -306,18 +322,18 @@ def post_message():
 def activities_page():
     # Only show user's own activities + recurring logic will be handled in calendar
     activities = Activity.query.filter_by(user_id=current_user.id).order_by(Activity.start_time).all()
-    return render_template('activities.html', activities=activities)
+    activity_types = ActivityType.query.order_by(ActivityType.name).all()
+    return render_template('activities.html', activities=activities, activity_types=activity_types)
 
 @app.route('/activities/add', methods=['POST'])
 @login_required
 def add_activity():
-    name = request.form.get('name')
-    place = request.form.get('place')
+    activity_type_id = request.form.get('activity_type_id')
     start_time_str = request.form.get('start_time') # "2023-10-30T09:00"
     end_time_str = request.form.get('end_time')
     recurrence_type = request.form.get('recurrence_type')
     
-    if not name or not start_time_str or not end_time_str:
+    if not activity_type_id or not start_time_str or not end_time_str:
         return "Missing fields", 400
         
     start_time = datetime.fromisoformat(start_time_str)
@@ -334,8 +350,7 @@ def add_activity():
             
     activity = Activity(
         user_id=current_user.id,
-        name=name,
-        place=place,
+        activity_type_id=activity_type_id,
         start_time=start_time,
         end_time=end_time,
         recurrence_type=recurrence_type,
@@ -556,6 +571,57 @@ with app.app_context():
             
     except Exception as e:
         print(f"Database initialization skipped: {e}")
+
+    # AUTO-MIGRATION: Activity Refactor
+    try:
+        from sqlalchemy import inspect
+        inspector = inspect(db.engine)
+        columns = [c['name'] for c in inspector.get_columns('activity')]
+        
+        # 1. Add activity_type_id column if missing
+        if 'activity_type_id' not in columns:
+            print("[MIGRATION] Adding activity_type_id to activity table...")
+            with db.engine.connect() as conn:
+                conn.execute(db.text("ALTER TABLE activity ADD COLUMN activity_type_id INTEGER"))
+                conn.commit()
+        
+        # 2. Populate ActivityTypes from existing names and link them
+        # We need to do this carefully. 
+        # Since we are inside app context but maybe not in a clean request, we use db.session carefully.
+        
+        # Ensure ActivityType table exists (create_all above should have created it if not exists)
+        
+        # Check if there are activities with name but no type
+        # We use raw sql or simple queries.
+        
+        # Get all distinct names from activities where activity_type_id is NULL
+        # Note: If 'name' column exists and has data.
+        if 'name' in columns:
+            stmt = db.text("SELECT DISTINCT name FROM activity WHERE activity_type_id IS NULL AND name IS NOT NULL")
+            with db.engine.connect() as conn:
+                result = conn.execute(stmt)
+                distinct_names = [row[0] for row in result]
+            
+            if distinct_names:
+                print(f"[MIGRATION] Found {len(distinct_names)} distinct activity names to migrate to ActivityType.")
+                for act_name in distinct_names:
+                    # Create or get ActivityType
+                    act_type = ActivityType.query.filter_by(name=act_name).first()
+                    if not act_type:
+                        act_type = ActivityType(name=act_name)
+                        db.session.add(act_type)
+                        db.session.commit() # Commit to get ID
+                    
+                    # Update all activities with this name
+                    db.session.execute(
+                        db.text("UPDATE activity SET activity_type_id = :type_id WHERE name = :name AND activity_type_id IS NULL"),
+                        {'type_id': act_type.id, 'name': act_name}
+                    )
+                db.session.commit()
+                print("[MIGRATION] Activity data migration completed.")
+                
+    except Exception as e:
+        print(f"[MIGRATION] Activity migration failed: {e}")
 
 
 
@@ -1297,6 +1363,41 @@ def admin_confirm_swap():
 
 def create_notif(user_id, msg):
     db.session.add(Notification(user_id=user_id, message=msg, link='/notifications'))
+    
+
+@app.route('/admin/activity_types')
+@login_required
+@role_required('manager')
+def admin_activity_types_page():
+    activity_types = ActivityType.query.order_by(ActivityType.name).all()
+    return render_template('admin_activity_types.html', activity_types=activity_types)
+
+@app.route('/admin/activity_types/add', methods=['POST'])
+@login_required
+@role_required('manager')
+def admin_add_activity_type():
+    name = request.form.get('name')
+    if name:
+        if not ActivityType.query.filter_by(name=name).first():
+            db.session.add(ActivityType(name=name))
+            db.session.commit()
+    return redirect(url_for('admin_activity_types_page'))
+
+@app.route('/admin/activity_types/delete/<int:id>', methods=['POST'])
+@login_required
+@role_required('manager')
+def admin_delete_activity_type(id):
+    act_type = ActivityType.query.get_or_404(id)
+    try:
+        # Set activities to null type
+        Activity.query.filter_by(activity_type_id=id).update({'activity_type_id': None})
+        db.session.delete(act_type)
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error deleting activity type: {e}")
+        
+    return redirect(url_for('admin_activity_types_page'))
     
 
 if __name__ == '__main__':

@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block title %}Admin - Tipos de Actividad{% endblock %}
+
+{% block content %}
+<div style="max-width: 800px; margin: 0 auto; padding: 20px;">
+    <h2>Gestionar Tipos de Actividad</h2>
+    <p>Define las actividades que los usuarios pueden seleccionar.</p>
+
+    <!-- Add Form -->
+    <div
+        style="background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 30px;">
+        <h3>Añadir Nuevo Tipo</h3>
+        <form action="{{ url_for('admin_add_activity_type') }}" method="POST" style="display: flex; gap: 10px;">
+            <input type="text" name="name" placeholder="Ej: Consulta Privada, Gimnasio, Clases..." required
+                style="flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
+            <button type="submit"
+                style="background: #48bb78; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer;">
+                Añadir
+            </button>
+        </form>
+    </div>
+
+    <!-- List -->
+    <div style="background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+        <h3>Tipos Existentes</h3>
+        {% if activity_types %}
+        <ul style="list-style: none; padding: 0;">
+            {% for type in activity_types %}
+            <li
+                style="border-bottom: 1px solid #eee; padding: 15px 0; display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-size: 1.1em;">{{ type.name }}</span>
+                <form action="{{ url_for('admin_delete_activity_type', id=type.id) }}" method="POST"
+                    onsubmit="return confirm('¿Seguro? Esto podría afectar a actividades existentes (se mantendrán pero perderán el tipo).');">
+                    <button type="submit"
+                        style="color: #ef4444; background: none; border: 1px solid #ef4444; padding: 5px 10px; border-radius: 4px; cursor: pointer;">
+                        Eliminar
+                    </button>
+                </form>
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p style="color: #888;">No hay tipos definidos.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
