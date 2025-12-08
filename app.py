@@ -332,6 +332,7 @@ def add_activity():
     start_time_str = request.form.get('start_time') # "2023-10-30T09:00"
     end_time_str = request.form.get('end_time')
     recurrence_type = request.form.get('recurrence_type')
+    next_url = request.form.get('next')
     
     if not activity_type_id or not start_time_str or not end_time_str:
         return "Missing fields", 400
@@ -359,6 +360,9 @@ def add_activity():
     )
     db.session.add(activity)
     db.session.commit()
+    
+    if next_url:
+        return redirect(next_url)
     return redirect(url_for('activities_page'))
 
 @app.route('/activities/delete/<int:id>', methods=['POST'])
@@ -372,6 +376,9 @@ def delete_activity(id):
 @app.route('/weekly_calendar')
 @login_required
 def weekly_calendar():
+    # Fetch activity types for the modal
+    activity_types = ActivityType.query.order_by(ActivityType.name).all()
+
     # Dates
     today = date.today()
     start_str = request.args.get('start_date')
@@ -466,7 +473,8 @@ def weekly_calendar():
                            days=days,
                            events_by_day=events_by_day,
                            prev_week=prev_week,
-                           next_week=next_week)
+                           next_week=next_week,
+                           activity_types=activity_types)
 
 # -----------------
 # 2. DATABASE INITIALIZATION (Run this once to create tables)

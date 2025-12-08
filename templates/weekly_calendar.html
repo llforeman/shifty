@@ -146,7 +146,9 @@
 
             <!-- Grid Lines Background -->
             {% for h in range(8, 25) %}
-            <div class="grid-bg-hour"></div>
+            <div class="grid-bg-hour" data-date="{{ week_dates[day_idx].strftime('%Y-%m-%d') }}"
+                data-hour="{{ '%02d' % h }}" onclick="openAddActivityModal(this.dataset.date, this.dataset.hour)">
+            </div>
             {% endfor %}
 
             <!-- Events -->
@@ -158,7 +160,7 @@
                     {% set height = duration * 50 %}
 
                     <div class="event-card"
-                        style="top: {{ top + 50 }}px; height: {{ height }}px; background-color: {{ event.color }};">
+                        style="top: {{ top + 50 }}px; height: {{ height }}px; background-color: {{ event.color }}; pointer-events: none;">
                         <span class="event-title">{{ event.title }}</span>
                         <span class="event-time">
                             {{ '%02d:00' % event.start_hour|int }} - {{ '%02d:00' % event.end_hour|int }}
@@ -184,4 +186,90 @@
         <span>Mis Actividades</span>
     </div>
 </div>
+
+<!-- Add Activity Modal -->
+<div id="addActivityModal"
+    style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
+    <div
+        style="background: white; padding: 25px; border-radius: 8px; width: 90%; max-width: 400px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+        <h3 style="margin-top: 0;">Añadir Actividad</h3>
+        <form action="{{ url_for('add_activity') }}" method="POST">
+            <input type="hidden" name="next" value="{{ request.url }}">
+
+            <div class="form-group">
+                <label>Tipo de Actividad</label>
+                <select name="activity_type_id" required style="width: 100%; padding: 8px; margin-bottom: 10px;">
+                    <option value="" disabled selected>Selecciona un tipo</option>
+                    {% for type in activity_types %}
+                    <option value="{{ type.id }}">{{ type.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Inicio</label>
+                <input type="datetime-local" name="start_time" id="modal_start_time" required
+                    style="width: 100%; padding: 8px; margin-bottom: 10px;">
+            </div>
+
+            <div class="form-group">
+                <label>Fin</label>
+                <input type="datetime-local" name="end_time" id="modal_end_time" required
+                    style="width: 100%; padding: 8px; margin-bottom: 10px;">
+            </div>
+
+            <div class="form-group">
+                <label>Repetición</label>
+                <select name="recurrence_type" style="width: 100%; padding: 8px; margin-bottom: 15px;">
+                    <option value="once">Solo una vez</option>
+                    <option value="weekly">Semanalmente</option>
+                </select>
+            </div>
+
+            <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                <button type="button" onclick="closeAddActivityModal()"
+                    style="padding: 8px 15px; background: #ccc; border: none; border-radius: 4px; cursor: pointer;">Cancelar</button>
+                <button type="submit"
+                    style="padding: 8px 15px; background: #48bb78; color: white; border: none; border-radius: 4px; cursor: pointer;">Guardar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    function openAddActivityModal(dateStr, hourStr) {
+        // Construct ISO datetime string for local time
+        // dateStr is YYYY-MM-DD, hourStr is HH
+        const startDateTime = `${dateStr}T${hourStr}:00`;
+
+        // Calculate end time (start + 1 hour)
+        // We'll trust the user's browser/OS for timezone handling for now 
+        // effectively treating input as "local wall time"
+        let startDate = new Date(startDateTime);
+        let endDate = new Date(startDate.getTime() + 60 * 60 * 1000); // Add 1 hour
+
+        // Format for datetime-local input: YYYY-MM-DDTHH:MM
+        function formatDT(d) {
+            const pad = (n) => n.toString().padStart(2, '0');
+            return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+        }
+
+        document.getElementById('modal_start_time').value = startDateTime;
+        document.getElementById('modal_end_time').value = formatDT(endDate);
+
+        const modal = document.getElementById('addActivityModal');
+        modal.style.display = 'flex';
+    }
+
+    function closeAddActivityModal() {
+        document.getElementById('addActivityModal').style.display = 'none';
+    }
+
+    // Close modal if clicking outside
+    document.getElementById('addActivityModal').addEventListener('click', function (e) {
+        if (e.target === this) {
+            closeAddActivityModal();
+        }
+    });
+</script>
 {% endblock %}
