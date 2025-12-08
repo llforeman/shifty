@@ -275,6 +275,20 @@ class Activity(db.Model):
             'activity_type_id': self.activity_type_id
         }
 
+class ActivityException(db.Model):
+    __tablename__ = 'activity_exception'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    activity_id = db.Column(db.Integer, db.ForeignKey('activity.id'), nullable=False)
+    date = db.Column(db.Date, nullable=False) # The specific date to skip
+    
+    activity = db.relationship('Activity', backref='exceptions')
+    
+    __table_args__ = (db.UniqueConstraint('activity_id', 'date', name='_act_date_uc'),)
+
+    def __repr__(self):
+        return f"<ActivityException {self.activity_id} on {self.date}>"
+
 @app.route('/chat')
 @login_required
 def chat_page():
@@ -378,21 +392,33 @@ def activities_page():
             
     # Process Activities
     for act in raw_activities:
+        # Get exceptions for this activity
+        exceptions = {ex.date for ex in act.exceptions}
+        
         # Determine if activity occurs in this week
         act_dates = []
         
         if act.recurrence_type == 'once':
             d = act.start_time.date()
-            if start_date <= d <= end_date:
+            if start_date <= d <= end_date and d not in exceptions:
                 act_dates.append(d)
         
         elif act.recurrence_type == 'weekly':
             # Find date of this weekday in current week
+            target_date = start_date + timedelta(days=act.recurrence_day) # ERROR: recurrence_day might be mismatch with start_date weekday base.
+            # Correction: We need to find the date corresponding to act.recurrence_day (0-6) within [start_date, end_date]
+            
+            # act.recurrence_day is 0-6. start_date is Monday (0).
+            # So if start_date is Mon(0) and recurrence_day is 0, target is start_date + 0.
+            # If recurrence_day is 2 (Wed), target is start_date + 2.
+            # Since start_date is always Monday (as per logic above: today - timedelta(days=today.weekday())), this simple addition works.
+            
             target_date = start_date + timedelta(days=act.recurrence_day)
             
             # Check end date
             if (not act.recurrence_end_date or target_date <= act.recurrence_end_date) and target_date >= act.start_time.date():
-                act_dates.append(target_date)
+                if target_date not in exceptions:
+                    act_dates.append(target_date)
                 
         for d in act_dates:
             day_idx = (d - start_date).days
@@ -502,9 +528,6 @@ def add_activity():
             activity.recurrence_type = recurrence_type
             # Reset recurring day if needed
             if recurrence_type == 'weekly':
-                activity.recurrence_day = (start_time.date() - start_time.date()).days # Just 0-6 w.r.t start date? No, logic:
-                # Actually, recurrence_day logic should be stored. 
-                # Ideally, we calculate 0-6 based on the start date weekday.
                 activity.recurrence_day = start_time.weekday()
             else:
                  activity.recurrence_day = None
@@ -536,12 +559,34 @@ def delete_activity(id):
     activity = Activity.query.get_or_404(id)
     if activity.user_id != current_user.id:
         abort(403)
-        
+    
+    # New logic for handling recurrence deletion
+    delete_mode = request.form.get('delete_mode', 'all')
+    target_date_str = request.form.get('date') # Expected from UI for specific instance
+    
     try:
-        db.session.delete(activity)
-        db.session.commit()
+        if delete_mode == 'single' and activity.recurrence_type == 'weekly' and target_date_str:
+            # Add exception for this date
+            try:
+                target_date = datetime.strptime(target_date_str, '%Y-%m-%d').date()
+                if not ActivityException.query.filter_by(activity_id=activity.id, date=target_date).first():
+                    exception = ActivityException(activity_id=activity.id, date=target_date)
+                    db.session.add(exception)
+                    db.session.commit()
+                    print(f"Added exception for activity {activity.id} on {target_date}")
+            except ValueError:
+                print("Invalid date format for deletion exception")
+        else:
+            # Default: delete the whole activity
+            # Use cascade delete? Or manually delete exceptions first?
+            ActivityException.query.filter_by(activity_id=id).delete()
+            db.session.delete(activity)
+            db.session.commit()
+            print(f"Deleted activity {activity.id}")
+            
     except Exception as e:
         print(f"Error deleting activity: {e}")
+        db.session.rollback()
         
     return redirect(url_for('activities_page'))
 
