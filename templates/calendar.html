@@ -79,9 +79,11 @@
 
 {% block content %}
 <div class="nav-header">
-    <a href="{{ url_for('calendar_view', year=prev_year, month=prev_month) }}" class="nav-btn">&larr; Anterior</a>
+    <a href="{{ url_for('calendar_view', year=prev_year, month=prev_month, mode='draft' if is_draft else None) }}"
+        class="nav-btn">&larr; Anterior</a>
     <h1 style="margin: 0;">{{ month_name }} {{ year }}</h1>
-    <a href="{{ url_for('calendar_view', year=next_year, month=next_month) }}" class="nav-btn">Siguiente &rarr;</a>
+    <a href="{{ url_for('calendar_view', year=next_year, month=next_month, mode='draft' if is_draft else None) }}"
+        class="nav-btn">Siguiente &rarr;</a>
 </div>
 
 {% if is_draft and current_user.role == 'manager' %}

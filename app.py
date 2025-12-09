@@ -340,167 +340,262 @@ def activities_page():
     # Fetch activity types for the modal
     activity_types = ActivityType.query.order_by(ActivityType.name).all()
 
+    # View selection
+    view_mode = request.args.get('view', 'week') # 'week' or 'month'
+    
     # Dates
     today = date.today()
     start_str = request.args.get('start_date')
-    if start_str:
-        start_date = datetime.strptime(start_str, '%Y-%m-%d').date()
-    else:
-        # Start on Monday of current week
-        start_date = today - timedelta(days=today.weekday())
+    
+    if view_mode == 'month':
+        # MONTHLY VIEW LOGIC
+        year = int(request.args.get('year', today.year))
+        month = int(request.args.get('month', today.month))
         
-    end_date = start_date + timedelta(days=6)
-    
-    # Navigation
-    prev_week = (start_date - timedelta(days=7)).strftime('%Y-%m-%d')
-    next_week = (start_date + timedelta(days=7)).strftime('%Y-%m-%d')
-    
-    # 1. Get Shifts
-    shifts = Shift.query.filter(
-        Shift.pediatrician_id == current_user.pediatrician_id,
-        Shift.date >= start_date,
-        Shift.date <= end_date
-    ).all()
-    
-    # 2. Get Activities
-    # Fetch all user activities (we filter recurrence manually)
-    raw_activities = Activity.query.filter_by(user_id=current_user.id).all()
-    
-    # 3. Build Hourly Grid
-    # Structure: events_by_day[0..6] = [ {title, start_hour, end_hour, type='shift'|'activity', place} ]
-    events_by_day = {i: [] for i in range(7)}
-    
-    # Process Shifts
-    for shift in shifts:
-        day_idx = (shift.date - start_date).days
-        if 0 <= day_idx <= 6:
-            # Weekday: 17:00 - 24:00 (5pm-12am) = 7 hours
-            # Weekend: 09:00 - 24:00 (9am-12am) = 15 hours
-            is_weekend = (shift.date.weekday() >= 5) # 5=Sat, 6=Sun
+        # Navigation
+        if month == 1:
+            prev_month, prev_year = 12, year - 1
+            prev_date = date(prev_year, prev_month, 1)
+        else:
+            prev_month, prev_year = month - 1, year
+            prev_date = date(prev_year, prev_month, 1)
             
-            s_hour = 9 if is_weekend else 17
-            e_hour = 24
+        if month == 12:
+            next_month, next_year = 1, year + 1
+            next_date = date(next_year, next_month, 1)
+        else:
+            next_month, next_year = month + 1, year
+            next_date = date(next_year, next_month, 1)
             
-            events_by_day[day_idx].append({
-                'title': 'Guardia',
-                'place': 'Hospital',
-                'start_hour': s_hour,
-                'end_hour': e_hour,
-                'type': 'shift',
-                'color': '#48bb78' # Green
-            })
-            
-    # Process Activities
-    for act in raw_activities:
-        # Get exceptions for this activity
-        exceptions = {ex.date for ex in act.exceptions}
+        # Get calendar matrix
+        cal = calendar.monthcalendar(year, month)
         
-        # Determine if activity occurs in this week
-        act_dates = []
+        # Date range for fetching
+        start_date = date(year, month, 1)
+        _, last_day = calendar.monthrange(year, month)
+        end_date = date(year, month, last_day)
         
-        if act.recurrence_type == 'once':
-            d = act.start_time.date()
-            if start_date <= d <= end_date and d not in exceptions:
-                act_dates.append(d)
+        # Fetch Activities (and expand recurring)
+        raw_activities = Activity.query.filter_by(user_id=current_user.id).all()
         
-        elif act.recurrence_type == 'weekly':
-            # Find date of this weekday in current week
-            target_date = start_date + timedelta(days=act.recurrence_day) # ERROR: recurrence_day might be mismatch with start_date weekday base.
-            # Correction: We need to find the date corresponding to act.recurrence_day (0-6) within [start_date, end_date]
+        # Expand activities into a list of dicts for the template
+        monthly_events = {}
+        for day in range(1, last_day + 1):
+            monthly_events[day] = []
             
-            # act.recurrence_day is 0-6. start_date is Monday (0).
-            # So if start_date is Mon(0) and recurrence_day is 0, target is start_date + 0.
-            # If recurrence_day is 2 (Wed), target is start_date + 2.
-            # Since start_date is always Monday (as per logic above: today - timedelta(days=today.weekday())), this simple addition works.
+        for act in raw_activities:
+            # Check exceptions
+            exceptions = {ex.date for ex in act.exceptions}
             
-            target_date = start_date + timedelta(days=act.recurrence_day)
+            # Dates this activity occurs in this month
+            act_dates = []
+            if act.recurrence_type == 'once':
+                d = act.start_time.date()
+                if start_date <= d <= end_date and d not in exceptions:
+                    act_dates.append(d)
+            elif act.recurrence_type == 'weekly':
+                # Expand weekday to dates in this month
+                # act.recurrence_day is 0-6 (Mon-Sun)
+                # We can iterate through the month
+                curr = start_date
+                while curr <= end_date:
+                    if curr.weekday() == act.recurrence_day:
+                         if (not act.recurrence_end_date or curr <= act.recurrence_end_date) and curr >= act.start_time.date():
+                            if curr not in exceptions:
+                                act_dates.append(curr)
+                    curr += timedelta(days=1)
             
-            # Check end date
-            if (not act.recurrence_end_date or target_date <= act.recurrence_end_date) and target_date >= act.start_time.date():
-                if target_date not in exceptions:
-                    act_dates.append(target_date)
+            for d in act_dates:
+                # Add to monthly_events
+                s_iso = datetime.combine(d, act.start_time.time()).strftime('%Y-%m-%dT%H:%M')
+                e_iso = datetime.combine(d, act.end_time.time()).strftime('%Y-%m-%dT%H:%M')
                 
-        for d in act_dates:
-            day_idx = (d - start_date).days
-            s_hour = act.start_time.hour
-            e_hour = act.end_time.hour + (act.end_time.minute / 60.0)
-            if e_hour == 0: e_hour = 24 # Handle midnight end
-            
-            # Helper to format time strings for the form
-            start_iso = datetime.combine(d, act.start_time.time()).strftime('%Y-%m-%dT%H:%M')
-            end_iso = datetime.combine(d, act.end_time.time()).strftime('%Y-%m-%dT%H:%M')
-            if e_hour == 24: # Correction for ISO string if it ends at midnight next day
-                 end_iso = (datetime.combine(d, datetime.min.time()) + timedelta(days=1)).strftime('%Y-%m-%dT%H:%M')
-
-            events_by_day[day_idx].append({
-                'id': act.id,
-                'title': act.activity_type.name if act.activity_type else (act.name or 'Unknown'),
-                'place': act.place,
-                'start_hour': s_hour,
-                'end_hour': e_hour,
-                'type': 'activity',
-                'color': '#4299e1', # Blue
-                'activity_type_id': act.activity_type_id,
-                'start_iso': start_iso,
-                'end_iso': end_iso,
-                'recurrence_type': act.recurrence_type
-            })
-
-    # 4. Handle Overlaps (Calculate Width and Left)
-    for day_idx in range(7):
-        day_events = events_by_day[day_idx]
-        if not day_events:
-            continue
-            
-        # Sort by start time
-        day_events.sort(key=lambda x: x['start_hour'])
+                monthly_events[d.day].append({
+                    'id': act.id,
+                    'title': act.activity_type.name if act.activity_type else (act.name or 'Unknown'),
+                    'time': act.start_time.strftime('%H:%M'),
+                    'start_iso': s_iso,
+                    'end_iso': e_iso,
+                    'activity_type_id': act.activity_type_id,
+                    'recurrence_type': act.recurrence_type,
+                    'color': '#4299e1'
+                })
         
-        # Simple clustering algorithm
-        # We group events that overlap.
-        # Two events overlap if A.start < B.end and B.start < A.end
-        
-        clusters = []
-        current_cluster = []
-        cluster_end = -1
-        
-        for evt in day_events:
-            if not current_cluster:
-                current_cluster.append(evt)
-                cluster_end = evt['end_hour']
-            else:
-                # Check overlap with ANY event in cluster? Or just the cluster range?
-                # User request: "only in case that 2 activities exist at the same time"
-                # If we have [10-12, 10-12, 11-13], they all overlap effectively in a chain.
-                # A simple packing: if start < cluster_end, it belongs to cluster.
-                if evt['start_hour'] < cluster_end:
-                    current_cluster.append(evt)
-                    cluster_end = max(cluster_end, evt['end_hour'])
-                else:
-                    clusters.append(current_cluster)
-                    current_cluster = [evt]
-                    cluster_end = evt['end_hour']
-        if current_cluster:
-            clusters.append(current_cluster)
+        # Sort events by time
+        for day in monthly_events:
+            monthly_events[day].sort(key=lambda x: x['time'])
             
-        # Assign width and left
-        for cluster in clusters:
-            count = len(cluster)
-            width = 100.0 / count
-            for i, evt in enumerate(cluster):
-                evt['width'] = width
-                evt['left'] = i * width
+        month_name = date(year, month, 1).strftime('%B')
+        
+        return render_template('monthly_activities.html',
+                               year=year, month=month, month_name=month_name,
+                               month_calendar=cal, events=monthly_events,
+                               prev_year=prev_year, prev_month=prev_month,
+                               next_year=next_year, next_month=next_month,
+                               activity_types=activity_types,
+                               view_mode='month')
 
-    days = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
-    week_dates = [(start_date + timedelta(days=i)) for i in range(7)]
+    else:
+        # WEEKLY VIEW LOGIC
+        if start_str:
+            start_date = datetime.strptime(start_str, '%Y-%m-%d').date()
+        else:
+            # Start on Monday of current week
+            start_date = today - timedelta(days=today.weekday())
+            
+        end_date = start_date + timedelta(days=6)
+        
+        # Navigation
+        prev_week = (start_date - timedelta(days=7)).strftime('%Y-%m-%d')
+        next_week = (start_date + timedelta(days=7)).strftime('%Y-%m-%d')
+        
+        # 1. Get Shifts
+        shifts = Shift.query.filter(
+            Shift.pediatrician_id == current_user.pediatrician_id,
+            Shift.date >= start_date,
+            Shift.date <= end_date
+        ).all()
+        
+        # 2. Get Activities
+        # Fetch all user activities (we filter recurrence manually)
+        raw_activities = Activity.query.filter_by(user_id=current_user.id).all()
+        
+        # 3. Build Hourly Grid
+        # Structure: events_by_day[0..6] = [ {title, start_hour, end_hour, type='shift'|'activity', place} ]
+        events_by_day = {i: [] for i in range(7)}
+        
+        # Process Shifts
+        for shift in shifts:
+            day_idx = (shift.date - start_date).days
+            if 0 <= day_idx <= 6:
+                # Weekday: 17:00 - 24:00 (5pm-12am) = 7 hours
+                # Weekend: 09:00 - 24:00 (9am-12am) = 15 hours
+                is_weekend = (shift.date.weekday() >= 5) # 5=Sat, 6=Sun
+                
+                s_hour = 9 if is_weekend else 17
+                e_hour = 24
+                
+                events_by_day[day_idx].append({
+                    'title': 'Guardia',
+                    'place': 'Hospital',
+                    'start_hour': s_hour,
+                    'end_hour': e_hour,
+                    'type': 'shift',
+                    'color': '#48bb78' # Green
+                })
+                
+        # Process Activities
+        for act in raw_activities:
+            # Get exceptions for this activity
+            exceptions = {ex.date for ex in act.exceptions}
+            
+            # Determine if activity occurs in this week
+            act_dates = []
+            
+            if act.recurrence_type == 'once':
+                d = act.start_time.date()
+                if start_date <= d <= end_date and d not in exceptions:
+                    act_dates.append(d)
+            
+            elif act.recurrence_type == 'weekly':
+                # Find date of this weekday in current week
+                target_date = start_date + timedelta(days=act.recurrence_day) # ERROR: recurrence_day might be mismatch with start_date weekday base.
+                # Correction: We need to find the date corresponding to act.recurrence_day (0-6) within [start_date, end_date]
+                
+                # act.recurrence_day is 0-6. start_date is Monday (0).
+                # So if start_date is Mon(0) and recurrence_day is 0, target is start_date + 0.
+                # If recurrence_day is 2 (Wed), target is start_date + 2.
+                # Since start_date is always Monday (as per logic above: today - timedelta(days=today.weekday())), this simple addition works.
+                
+                target_date = start_date + timedelta(days=act.recurrence_day)
+                
+                # Check end date
+                if (not act.recurrence_end_date or target_date <= act.recurrence_end_date) and target_date >= act.start_time.date():
+                    if target_date not in exceptions:
+                        act_dates.append(target_date)
+                    
+            for d in act_dates:
+                day_idx = (d - start_date).days
+                s_hour = act.start_time.hour
+                e_hour = act.end_time.hour + (act.end_time.minute / 60.0)
+                if e_hour == 0: e_hour = 24 # Handle midnight end
+                
+                # Helper to format time strings for the form
+                start_iso = datetime.combine(d, act.start_time.time()).strftime('%Y-%m-%dT%H:%M')
+                end_iso = datetime.combine(d, act.end_time.time()).strftime('%Y-%m-%dT%H:%M')
+                if e_hour == 24: # Correction for ISO string if it ends at midnight next day
+                     end_iso = (datetime.combine(d, datetime.min.time()) + timedelta(days=1)).strftime('%Y-%m-%dT%H:%M')
     
-    return render_template('weekly_calendar.html', 
-                           start_date=start_date,
-                           week_dates=week_dates,
-                           days=days,
-                           events_by_day=events_by_day,
-                           prev_week=prev_week,
-                           next_week=next_week,
-                           activity_types=activity_types)
+                events_by_day[day_idx].append({
+                    'id': act.id,
+                    'title': act.activity_type.name if act.activity_type else (act.name or 'Unknown'),
+                    'place': act.place,
+                    'start_hour': s_hour,
+                    'end_hour': e_hour,
+                    'type': 'activity',
+                    'color': '#4299e1', # Blue
+                    'activity_type_id': act.activity_type_id,
+                    'start_iso': start_iso,
+                    'end_iso': end_iso,
+                    'recurrence_type': act.recurrence_type
+                })
+    
+        # 4. Handle Overlaps (Calculate Width and Left)
+        for day_idx in range(7):
+            day_events = events_by_day[day_idx]
+            if not day_events:
+                continue
+                
+            # Sort by start time
+            day_events.sort(key=lambda x: x['start_hour'])
+            
+            # Simple clustering algorithm
+            # We group events that overlap.
+            # Two events overlap if A.start < B.end and B.start < A.end
+            
+            clusters = []
+            current_cluster = []
+            cluster_end = -1
+            
+            for evt in day_events:
+                if not current_cluster:
+                    current_cluster.append(evt)
+                    cluster_end = evt['end_hour']
+                else:
+                    # Check overlap with ANY event in cluster? Or just the cluster range?
+                    # User request: "only in case that 2 activities exist at the same time"
+                    # If we have [10-12, 10-12, 11-13], they all overlap effectively in a chain.
+                    # A simple packing: if start < cluster_end, it belongs to cluster.
+                    if evt['start_hour'] < cluster_end:
+                        current_cluster.append(evt)
+                        cluster_end = max(cluster_end, evt['end_hour'])
+                    else:
+                        clusters.append(current_cluster)
+                        current_cluster = [evt]
+                        cluster_end = evt['end_hour']
+            if current_cluster:
+                clusters.append(current_cluster)
+                
+            # Assign width and left
+            for cluster in clusters:
+                count = len(cluster)
+                width = 100.0 / count
+                for i, evt in enumerate(cluster):
+                    evt['width'] = width
+                    evt['left'] = i * width
+    
+        days = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
+        week_dates = [(start_date + timedelta(days=i)) for i in range(7)]
+        
+        return render_template('weekly_calendar.html', 
+                               start_date=start_date,
+                               week_dates=week_dates,
+                               days=days,
+                               events_by_day=events_by_day,
+                               prev_week=prev_week,
+                               next_week=next_week,
+                               activity_types=activity_types,
+                               view_mode='week')
 
 @app.route('/activities/add', methods=['POST'])
 @login_required
