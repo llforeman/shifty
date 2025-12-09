@@ -929,11 +929,21 @@ def preferences_page(ped_id):
                 'end_date': max(p.date for p in prefs)
             })
         
+    # Prepare JSON for Calendar
+    # List of { date: 'YYYY-MM-DD', type: 'Skip'|'Vacation'... }
+    prefs_list = []
+    for p in all_prefs:
+        prefs_list.append({
+            'date': p.date.strftime('%Y-%m-%d'),
+            'type': p.type
+        })
+        
     return render_template(
         'preferences_form.html',
         pediatrician=pediatrician,
         individual_prefs=individual_prefs,
-        recurring_prefs=formatted_recurring
+        recurring_prefs=formatted_recurring,
+        prefs_json=prefs_list
     )
 
 @app.route('/login', methods=['GET', 'POST'])

@@ -141,10 +141,7 @@
             📆 Agenda Semanal
         </a>
 
-        <a href="{{ url_for('activities_page') }}"
-            class="{% if request.endpoint == 'activities_page' %}active{% endif %}">
-            ⚽ Mis Actividades
-        </a>
+
 
         {% if current_user.pediatrician_id %}
         <a href="{{ url_for('preferences_page', ped_id=current_user.pediatrician_id) }}"
