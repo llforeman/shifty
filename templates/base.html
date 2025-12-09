@@ -168,6 +168,10 @@
 
         {% if current_user.role == 'manager' %}
         <div style="border-top: 1px solid rgba(255,255,255,0.2); margin: 10px 0;"></div>
+        <a href="{{ url_for('manager_config') }}"
+            class="{% if request.endpoint == 'manager_config' %}active{% endif %}">
+            🛠️ Configurar y Generar
+        </a>
         <a href="{{ url_for('admin_swaps_page') }}"
             class="{% if request.endpoint == 'admin_swaps_page' %}active{% endif %}">
             🔄 Gestionar Cambios
