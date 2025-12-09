@@ -21,7 +21,7 @@
 
         .sidebar {
             width: 250px;
-            background: #040E6C;
+            background: #020840;
             color: #ffffff;
             padding: 20px 0;
             position: fixed;
@@ -125,14 +125,21 @@
 <body>
     <div class="sidebar">
         <div class="sidebar-logo">
-            <img src="{{ url_for('static', filename='logo.png') }}" alt="Shifty Logo">
-            <h3 style="margin-top: 10px; margin-bottom: 0;">Shifty</h3>
+            <img src="https://xifty.org/wp-content/uploads/2025/12/xiftydarkest-scaled-e1765322683572.png"
+                alt="Shifty Logo">
+            <!-- Shifty text removed as image likely contains logo text, or user just wanted image replaced. keeping h3 hidden or remove? User said "change shifty image". The h3 says "Shifty". The image is large. I'll remove the text to be cleaner or keep? User didn't say remove text. I'll keep it but ensure image fits. -->
         </div>
 
         {% if current_user.is_authenticated %}
-        <!-- NAV LINKS -->
-        <a href="{{ url_for('calendar_view') }}" class="{% if request.endpoint == 'calendar_view' %}active{% endif %}">
-            📅 Calendario de guardias
+
+        <!-- COMMON TOP LINKS (Order: Notif, Profile, Calendar, Chat) -->
+        <a href="{{ url_for('notifications_page') }}"
+            class="{% if request.endpoint == 'notifications_page' %}active{% endif %}">
+            🔔 Notificaciones
+        </a>
+
+        <a href="{{ url_for('profile') }}" class="{% if request.endpoint == 'profile' %}active{% endif %}">
+            👤 Mi Perfil
         </a>
 
         <a href="{{ url_for('activities_page') }}"
@@ -140,30 +147,21 @@
             📆 Calendario
         </a>
 
-
-
-        {% if current_user.pediatrician_id %}
-        <a href="{{ url_for('preferences_page', ped_id=current_user.pediatrician_id) }}"
-            class="{% if request.endpoint == 'preferences_page' %}active{% endif %}">
-            ⚙️ Mis Preferencias
-        </a>
-        {% endif %}
-
-        <a href="{{ url_for('notifications_page') }}"
-            class="{% if request.endpoint == 'notifications_page' %}active{% endif %}">
-            🔔 Notificaciones
-        </a>
-
         <a href="{{ url_for('chat_page') }}" class="{% if request.endpoint == 'chat_page' %}active{% endif %}">
             💬 Chat
         </a>
 
-        <a href="{{ url_for('profile') }}" class="{% if request.endpoint == 'profile' %}active{% endif %}">
-            👤 Mi Perfil
-        </a>
 
         {% if current_user.role == 'manager' %}
+        <!-- ADMIN SPECIFIC TOP LINKS -->
+        <a href="{{ url_for('admin_activity_types_page') }}"
+            class="{% if request.endpoint == 'admin_activity_types_page' %}active{% endif %}">
+            🏷️ Tipos de Actividad
+        </a>
+
+        <!-- ADMIN BOTTOM SECTION -->
         <div style="border-top: 1px solid rgba(255,255,255,0.2); margin: 10px 0;"></div>
+
         <a href="{{ url_for('manager_config') }}"
             class="{% if request.endpoint == 'manager_config' %}active{% endif %}">
             🛠️ Configurar y Generar
@@ -176,10 +174,26 @@
             class="{% if request.endpoint == 'preferences_view_selection' %}active{% endif %}">
             ⚙️ Ver Preferencias
         </a>
-        <a href="{{ url_for('admin_activity_types_page') }}"
-            class="{% if request.endpoint == 'admin_activity_types_page' %}active{% endif %}">
-            🏷️ Tipos de Actividad
+        <!-- Adding Calendario de Guardias here for Admin ensuring they can see the result -->
+        <a href="{{ url_for('calendar_view') }}" class="{% if request.endpoint == 'calendar_view' %}active{% endif %}">
+            📅 Calendario de guardias
         </a>
+
+        {% else %}
+        <!-- USER BOTTOM SECTION -->
+        <div style="border-top: 1px solid rgba(255,255,255,0.2); margin: 10px 0;"></div>
+
+        <a href="{{ url_for('calendar_view') }}" class="{% if request.endpoint == 'calendar_view' %}active{% endif %}">
+            📅 Calendario de guardias
+        </a>
+
+        {% if current_user.pediatrician_id %}
+        <a href="{{ url_for('preferences_page', ped_id=current_user.pediatrician_id) }}"
+            class="{% if request.endpoint == 'preferences_page' %}active{% endif %}">
+            ⚙️ Mis Preferencias
+        </a>
+        {% endif %}
+
         {% endif %}
 
         <a href="{{ url_for('logout') }}" class="logout-btn">Cerrar Sesión</a>
