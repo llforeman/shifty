@@ -1222,6 +1222,8 @@ def manager_config():
     # Convert to dictionary for easier access in template
     config_dict = {item.key: item.value for item in config_items}
     
+    return render_template('manager_config.html', config=config_dict)
+    
 @app.route('/admin/create_user', methods=['GET', 'POST'])
 @login_required
 @role_required('manager')
