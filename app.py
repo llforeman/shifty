@@ -93,8 +93,10 @@ class Pediatrician(db.Model):
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(100), unique=True)
+    email = db.Column(db.String(120), unique=True, nullable=True)
     password_hash = db.Column(db.String(255))
     role = db.Column(db.String(50), default='user') # 'manager' or 'user'
+    must_change_password = db.Column(db.Boolean, default=False)
     pediatrician_id = db.Column(db.Integer, db.ForeignKey('pediatrician.id'), nullable=True) # Null for managers
     
     # Relationship to access pediatrician data
@@ -1093,25 +1095,31 @@ def login():
         return redirect(url_for('profile'))
         
     if request.method == 'POST':
-        username = request.form.get('username')
+        username_or_email = request.form.get('username')
         password = request.form.get('password')
-        user = User.query.filter_by(username=username).first()
+        
+        # Try finding by username first, then by email
+        user = User.query.filter_by(username=username_or_email).first()
+        if not user:
+            user = User.query.filter_by(email=username_or_email).first()
 
         if user and user.check_password(password):
-            print(f"[DEBUG] /login - Login successful for user: {username}")
+            print(f"[DEBUG] /login - Login successful for user: {user.username}")
             login_user(user, remember=True)
-            print(f"[DEBUG] /login - After login_user, session: {dict(flask_session)}")
-            print(f"[DEBUG] /login - After login_user, is_authenticated: {current_user.is_authenticated}")
-            next_page = request.args.get('next')
             
+            # Check for forced password change
+            if user.must_change_password:
+                flash('Por seguridad, debes cambiar tu contraseña inicial.', 'error')
+                return redirect(url_for('profile'))
+                
+            next_page = request.args.get('next')
             if next_page:
                 return redirect(next_page)
             
-            # All users go to profile page after login
             return redirect(url_for('profile'))
         
-        print(f"[DEBUG] /login - Login failed for user: {username}")
-        return render_template('login.html', error='Usuario o contraseña inválidos')
+        print(f"[DEBUG] /login - Login failed for: {username_or_email}")
+        return render_template('login.html', error='Usuario/Email o contraseña inválidos')
 
     return render_template('login.html')
 
@@ -1159,6 +1167,7 @@ def profile():
         
         if new_password and new_password == confirm_password:
             current_user.set_password(new_password)
+            current_user.must_change_password = False # Clear forced flag
             db.session.commit()
             msg = 'Contraseña actualizada correctamente.'
             msg_category = 'success'
@@ -1213,7 +1222,57 @@ def manager_config():
     # Convert to dictionary for easier access in template
     config_dict = {item.key: item.value for item in config_items}
     
-    return render_template('manager_config.html', config=config_dict)
+@app.route('/admin/create_user', methods=['GET', 'POST'])
+@login_required
+@role_required('manager')
+def admin_create_user():
+    if request.method == 'POST':
+        name = request.form.get('name')
+        email = request.form.get('email')
+        role = request.form.get('role')
+        
+        # Validation
+        if User.query.filter_by(email=email).first():
+            flash('El email ya está registrado.', 'error')
+            return redirect(url_for('admin_create_user'))
+            
+        try:
+            # 1. Handle Pediatrician (if role is user)
+            ped_id = None
+            if role == 'user':
+                existing_ped = Pediatrician.query.filter_by(name=name).first()
+                if existing_ped:
+                    ped_id = existing_ped.id
+                else:
+                    # Create new Pediatrician
+                    new_ped = Pediatrician(name=name)
+                    db.session.add(new_ped)
+                    db.session.commit()
+                    ped_id = new_ped.id
+            
+            # 2. Create User
+            # We use email as username to ensure uniqueness and simplicity
+            new_user = User(
+                username=email, 
+                email=email, 
+                role=role,
+                pediatrician_id=ped_id,
+                must_change_password=True
+            )
+            new_user.set_password('1111')
+            
+            db.session.add(new_user)
+            db.session.commit()
+            
+            flash(f'Usuario {name} ({email}) creado con éxito.', 'success')
+            return redirect(url_for('manager_config')) # Or back to list
+            
+        except Exception as e:
+            db.session.rollback()
+            print(f"Error creating user: {e}")
+            flash(f'Error al crear usuario: {e}', 'error')
+            
+    return render_template('admin_create_user.html')
 
 
 @app.route('/generate_schedule', methods=['POST'])

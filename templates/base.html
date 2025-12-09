@@ -154,6 +154,11 @@
 
         {% if current_user.role == 'manager' %}
         <!-- ADMIN SPECIFIC TOP LINKS -->
+        <a href="{{ url_for('admin_create_user') }}"
+            class="{% if request.endpoint == 'admin_create_user' %}active{% endif %}">
+            👥 Crear Usuario
+        </a>
+
         <a href="{{ url_for('admin_activity_types_page') }}"
             class="{% if request.endpoint == 'admin_activity_types_page' %}active{% endif %}">
             🏷️ Tipos de Actividad
