@@ -208,6 +208,7 @@
             <option value="Skip">Skip (No disponible)</option>
             <option value="Prefer">Prefer (Prefiero trabajar)</option>
             <option value="Prefer Not">Prefer Not (Prefiero no trabajar)</option>
+            <option value="Mandatory">Mandatory (Obligatorio/Guardia Impuesta)</option>
         </select>
 
         <button type="submit">Guardar Preferencia</button>
@@ -263,6 +264,7 @@
         <div class="legend-item"><span class="dot" style="background: #3498db;"></span> Vacation (Vacaciones)</div>
         <div class="legend-item"><span class="dot" style="background: #2ecc71;"></span> Prefer (Prefiero)</div>
         <div class="legend-item"><span class="dot" style="background: #f1c40f;"></span> Prefer Not (Prefiero no)</div>
+        <div class="legend-item"><span class="dot" style="background: #8e44ad;"></span> Mandatory (Obligatorio)</div>
     </div>
     <p style="font-size: 0.9em; color: #666; margin-top: 10px;">
         * Haz clic en una fecha para seleccionarla arriba.
@@ -448,6 +450,7 @@
                 else if (type === 'Vacation') dot.style.background = '#3498db'; // Blue
                 else if (type === 'Prefer') dot.style.background = '#2ecc71'; // Green
                 else if (type === 'Prefer Not') dot.style.background = '#f1c40f'; // Yellow
+                else if (type === 'Mandatory') dot.style.background = '#8e44ad'; // Purple
 
                 cell.appendChild(dot);
                 cell.title = type; // Tooltip

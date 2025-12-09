@@ -144,10 +144,62 @@ def process_month(year, month, xls, ped_sheets, ped_names, pediatricians):
         for day in congress_days: cannot_work.update({day, day - timedelta(days=1), day + timedelta(days=1)})
         cannot_do_days[ped_id] = cannot_work
 
+    
+    # --- NEW: Read Stored Preferences from DB ---
+    with app.app_context():
+        db_prefs = Preference.query.filter(
+            Preference.date >= start_date,
+            Preference.date <= end_date
+        ).all()
+        
+        for pref in db_prefs:
+            pid = pref.pediatrician_id
+            p_date = pref.date
+            p_type = pref.type
+            
+            if pid in ped_names:
+                if p_type == 'Mandatory':
+                    mandatory_shifts.setdefault(pid, []).append(p_date)
+                    # Mandatory overrides Skip/Vacation
+                    if pid in skip_days and p_date in skip_days[pid]:
+                        skip_days[pid].remove(p_date)
+                    if pid in vacation_days and p_date in vacation_days[pid]:
+                         vacation_days[pid].remove(p_date)
+                    # Ensure it's removed from cannot_do_days if it was added there
+                    if pid in cannot_do_days and p_date in cannot_do_days[pid]:
+                        cannot_do_days[pid].remove(p_date)
+                         
+                elif p_type == 'Vacation':
+                    vacation_days.setdefault(pid, set()).add(p_date)
+                    # Update cannot_do (with buffer)
+                    cannot_do_days.setdefault(pid, set()).update({p_date, p_date - timedelta(days=1), p_date + timedelta(days=1)})
+                    
+                elif p_type == 'Skip':
+                    skip_days.setdefault(pid, set()).add(p_date)
+                    cannot_do_days.setdefault(pid, set()).add(p_date)
+                    
+                elif p_type == 'Prefer':
+                    preferred_days.setdefault(pid, set()).add(p_date)
+                elif p_type == 'Prefer Not':
+                    prefer_not_days.setdefault(pid, set()).add(p_date)
+
+    # --- Enforce Mandatory vs Excel Skips ---
     for ped_id in mandatory_shifts:
+        # If a date is mandatory, it must NOT be in skip_days or cannot_do_days
+        # (We already cleaned up DB conflicts, now clean up Excel conflicts)
+        if ped_id in cannot_do_days:
+            for mand_date in mandatory_shifts[ped_id]:
+                if mand_date in cannot_do_days[ped_id]:
+                    cannot_do_days[ped_id].remove(mand_date)
+                    
         if ped_id in skip_days:
-            skip_days_set = skip_days[ped_id]
-            mandatory_shifts[ped_id] = [shift for shift in mandatory_shifts[ped_id] if shift not in skip_days_set]
+            for mand_date in mandatory_shifts[ped_id]:
+                if mand_date in skip_days[ped_id]:
+                    skip_days[ped_id].remove(mand_date)
+
+        # Original logic removed mandatory if in skip. We did the opposite (removed skip if mandatory).
+        # So we don't need the filtering loop anymore, just trusting the cleanup above.
+
 
     return {
         'days': days, 'start_date': start_date, 'end_date': end_date,
