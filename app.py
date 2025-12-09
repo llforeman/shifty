@@ -846,6 +846,47 @@ def preferences_page(ped_id):
                     return redirect(url_for('preferences_page', ped_id=ped_id))
                 except ValueError as e:
                     print(f"Error processing date: {e}")
+
+        # Handle date range preference
+        elif preference_mode == 'range':
+            range_start_str = request.form.get('range_start')
+            range_end_str = request.form.get('range_end')
+            
+            if range_start_str and range_end_str and req_type:
+                try:
+                    start_date = date.fromisoformat(range_start_str)
+                    end_date = date.fromisoformat(range_end_str)
+                    
+                    # Iterate through range
+                    current_date = start_date
+                    while current_date <= end_date:
+                        existing_entry = Preference.query.filter_by(
+                            pediatrician_id=ped_id, date=current_date
+                        ).first()
+
+                        if req_type == 'Delete':
+                            if existing_entry:
+                                db.session.delete(existing_entry)
+                        elif existing_entry:
+                            existing_entry.type = req_type
+                            existing_entry.recurring_group = None # Convert to individual if it was part of a group? 
+                            # Decision: Yes, because specific overrides/edits should probably break the group link 
+                            # or just stay individual. Let's make it individual.
+                        else:
+                            new_pref = Preference(
+                                pediatrician_id=ped_id, 
+                                date=current_date, 
+                                type=req_type,
+                                recurring_group=None
+                            )
+                            db.session.add(new_pref)
+                        
+                        current_date += timedelta(days=1)
+                    
+                    db.session.commit()
+                    return redirect(url_for('preferences_page', ped_id=ped_id))
+                except ValueError as e:
+                    print(f"Error processing date range: {e}")
         
         # Handle recurring weekday preference
         elif preference_mode == 'recurring':

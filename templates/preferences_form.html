@@ -127,6 +127,9 @@
         <div class="mode-option active" onclick="selectMode('specific')">
             📅 Fecha Específica
         </div>
+        <div class="mode-option" onclick="selectMode('range')">
+            🗓️ Rango de Fechas
+        </div>
         <div class="mode-option" onclick="selectMode('recurring')">
             🔄 Día de la Semana (Recurrente)
         </div>
@@ -139,6 +142,20 @@
         <div id="specific-section" class="form-section active">
             <label for="req_date">Fecha:</label>
             <input type="date" id="req_date" name="request_date">
+        </div>
+
+        <!-- Date Range Section -->
+        <div id="range-section" class="form-section">
+            <div class="date-range">
+                <div>
+                    <label for="range_start">Desde:</label>
+                    <input type="date" id="range_start" name="range_start">
+                </div>
+                <div>
+                    <label for="range_end">Hasta:</label>
+                    <input type="date" id="range_end" name="range_end">
+                </div>
+            </div>
         </div>
 
         <!-- Recurring Weekday Section -->
@@ -526,9 +543,18 @@
         // Update required fields
         if (mode === 'specific') {
             document.getElementById('req_date').required = true;
+            document.getElementById('range_start').required = false;
+            document.getElementById('range_end').required = false;
+            document.getElementById('weekday').required = false;
+        } else if (mode === 'range') {
+            document.getElementById('req_date').required = false;
+            document.getElementById('range_start').required = true;
+            document.getElementById('range_end').required = true;
             document.getElementById('weekday').required = false;
         } else {
             document.getElementById('req_date').required = false;
+            document.getElementById('range_start').required = false;
+            document.getElementById('range_end').required = false;
             document.getElementById('weekday').required = true;
         }
     }
