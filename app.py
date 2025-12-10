@@ -828,6 +828,14 @@ def init_db_and_seed():
             db.session.commit()
             print("Created default admin user (admin/admin123)")
 
+        # Create Superadmin user if not exists
+        if not User.query.filter_by(username='superadmin').first():
+            superadmin = User(username='superadmin', role='superadmin') # No service_id
+            superadmin.set_password('superadmin123')
+            db.session.add(superadmin)
+            db.session.commit()
+            print("Created superadmin user (superadmin/superadmin123)")
+
 # Initialize database when app starts (within proper context)
 with app.app_context():
     try:
@@ -1192,6 +1200,8 @@ def login():
     print(f"[DEBUG] /login - is_authenticated: {current_user.is_authenticated}")
     
     if current_user.is_authenticated:
+        if current_user.role == 'superadmin':
+            return redirect(url_for('superadmin_dashboard'))
         # Fixed: Send all users to profile, not just managers
         return redirect(url_for('profile'))
         
@@ -1213,6 +1223,9 @@ def login():
                 flash('Por seguridad, debes cambiar tu contraseña inicial.', 'error')
                 return redirect(url_for('profile'))
                 
+            if user.role == 'superadmin':
+                 return redirect(url_for('superadmin_dashboard'))
+
             next_page = request.args.get('next')
             if next_page:
                 return redirect(next_page)
@@ -1642,6 +1655,71 @@ def calendar_view(year=None, month=None):
                            next_shift_date=next_shift_date,
                            is_draft=is_draft,
                            current_user=current_user)
+
+@app.route('/superadmin')
+@login_required
+@role_required('superadmin')
+def superadmin_dashboard():
+    organizations = Organization.query.all()
+    return render_template('superadmin_dashboard.html', organizations=organizations)
+
+@app.route('/superadmin/create_org', methods=['POST'])
+@login_required
+@role_required('superadmin')
+def superadmin_create_org():
+    name = request.form.get('name')
+    if name:
+        try:
+            org = Organization(name=name)
+            db.session.add(org)
+            db.session.commit()
+            flash('Hospital creado correctamente.', 'success')
+        except Exception as e:
+            flash(f'Error al crear hospital: {e}', 'error')
+    return redirect(url_for('superadmin_dashboard'))
+
+@app.route('/superadmin/create_service', methods=['POST'])
+@login_required
+@role_required('superadmin')
+def superadmin_create_service():
+    org_id = request.form.get('org_id')
+    name = request.form.get('name')
+    
+    if org_id and name:
+        try:
+            service = Service(name=name, organization_id=org_id)
+            db.session.add(service)
+            db.session.commit()
+            
+            # Seed configs for new service
+            seed_global_config(service.id)
+            
+            flash('Servicio creado correctamente.', 'success')
+        except Exception as e:
+            flash(f'Error al crear servicio: {e}', 'error')
+    return redirect(url_for('superadmin_dashboard'))
+
+@app.route('/superadmin/create_admin', methods=['POST'])
+@login_required
+@role_required('superadmin')
+def superadmin_create_admin():
+    service_id = request.form.get('service_id')
+    username = request.form.get('username')
+    password = request.form.get('password')
+    
+    if service_id and username and password:
+        try:
+            if User.query.filter_by(username=username).first():
+                 flash('El usuario ya existe.', 'error')
+            else:
+                user = User(username=username, role='manager', active_service_id=service_id)
+                user.set_password(password)
+                db.session.add(user)
+                db.session.commit()
+                flash('Admin creado correctamente.', 'success')
+        except Exception as e:
+            flash(f'Error al crear admin: {e}', 'error')
+    return redirect(url_for('superadmin_dashboard'))
 
 @app.route('/api/swap_shifts', methods=['POST'])
 @login_required
