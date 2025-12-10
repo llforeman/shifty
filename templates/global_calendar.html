@@ -95,11 +95,14 @@
                 <td class="activity-cell">
                     {% if activity_data[date_str] %}
                     {% for event in activity_data[date_str] %}
-                    <div class="staff-item">
+                    <div class="staff-item"
+                        style="border-left: 3px solid {{ event.color }}; background: {{ event.color }}20;">
                         {{ event.pediatrician }}
                         <span class="staff-time">({{ event.time_str }})</span>
                     </div>
-                    <div style="height: 2px; width: 100%; background: #2196f3; margin-bottom: 5px; opacity: 0.5;"></div>
+                    <div
+                        style="height: 2px; width: 100%; background: {{ event.color }}; margin-bottom: 5px; opacity: 0.5;">
+                    </div>
                     {% endfor %}
                     {% endif %}
                 </td>

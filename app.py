@@ -2191,6 +2191,23 @@ def global_calendar():
         Activity.end_time <= datetime.combine(end_of_week, datetime.max.time())
     ).all()
     
+    # Calculate Overlaps for Visualization
+    conflict_ids = set()
+    # Sort by user then start_time to compare adjacent activities
+    activities.sort(key=lambda x: (x.user_id, x.start_time))
+    for i in range(len(activities)):
+        for j in range(i + 1, len(activities)):
+            a1 = activities[i]
+            a2 = activities[j]
+            if a1.user_id != a2.user_id:
+                break
+            # Check overlap: a1 ends after a2 starts
+            if a1.end_time > a2.start_time: 
+                conflict_ids.add(a1.id)
+                conflict_ids.add(a2.id)
+            else:
+                break 
+
     # Shifts
     shifts = Shift.query.join(Pediatrician).filter(
         Pediatrician.service_id == g.current_service.id,
@@ -2210,7 +2227,8 @@ def global_calendar():
         if d_str not in events_by_activity[category]: events_by_activity[category][d_str] = []
         events_by_activity[category][d_str].append({
             'pediatrician': ped_name,
-            'time_str': time_str
+            'time_str': time_str,
+            'color': color
         })
 
     # Color Map (Simple hash or static)
