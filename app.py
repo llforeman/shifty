@@ -2025,12 +2025,58 @@ def debug_create_superadmin():
         db.session.add(superadmin)
         db.session.commit()
         return "Superadmin created: superadmin / superadmin123"
-    else:
-        # Reset password just in case
-        u = User.query.filter_by(username='superadmin').first()
-        u.set_password('superadmin123')
-        db.session.commit()
         return "Superadmin exists. Password reset to: superadmin123"
+
+@app.route('/api/debug/migrate_activity_types')
+@login_required
+@role_required('superadmin')
+def debug_migrate_activity_types():
+    from sqlalchemy import text
+    try:
+        # Check if column service_id exists in activity_type? 
+        # Actually we know what we need: recreate table to fix constraints.
+        
+        conn = db.engine.connect()
+        trans = conn.begin()
+        
+        # 1. Rename existing table
+        conn.execute(text("ALTER TABLE activity_type RENAME TO activity_type_old"))
+        
+        # 2. Create new table with updated constraints:
+        # - id PK
+        # - name VARCHAR(100) NOT NULL
+        # - service_id INTEGER, FK to service.id
+        # - UNIQUE(name, service_id)
+        # Note: In SQLite id is INTEGER PRIMARY KEY AUTOINCREMENT equivalent
+        create_sql = """
+        CREATE TABLE activity_type (
+            id INTEGER PRIMARY KEY,
+            name VARCHAR(100) NOT NULL,
+            service_id INTEGER,
+            FOREIGN KEY(service_id) REFERENCES service(id),
+            CONSTRAINT uq_activity_name_service UNIQUE(name, service_id)
+        );
+        """
+        conn.execute(text(create_sql))
+        
+        # 3. Copy data
+        # Default service_id to 1 if null
+        conn.execute(text("""
+            INSERT INTO activity_type (id, name, service_id)
+            SELECT id, name, COALESCE(service_id, 1) FROM activity_type_old
+        """))
+        
+        # 4. Drop old table
+        conn.execute(text("DROP TABLE activity_type_old"))
+        
+        trans.commit()
+        conn.close()
+        return "Migration successful: ActivityType unique constraint updated."
+        
+    except Exception as e:
+        if 'already exists' in str(e):
+             return f"Migration might have already run? Error: {e}"
+        return f"Migration failed: {e}"
 
 if __name__ == '__main__':
     # Initialize database before running the app
