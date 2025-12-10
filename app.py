@@ -1638,9 +1638,6 @@ def debug_shifts():
 @app.route('/publish_schedule/<int:year>/<int:month>', methods=['POST'])
 @login_required
 @role_required('manager')
-@app.route('/publish_schedule/<int:year>/<int:month>', methods=['POST'])
-@login_required
-@role_required('manager')
 def publish_schedule(year, month):
     try:
         start_date = date(year, month, 1)
