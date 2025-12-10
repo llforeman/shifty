@@ -53,4 +53,43 @@
 
     </form>
 </div>
+
+<div style="margin-top: 40px;">
+    <h2>Usuarios Existentes</h2>
+    <table
+        style="width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+        <thead style="background: #f8f9fa;">
+            <tr>
+                <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">ID</th>
+                <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Usuario / Email</th>
+                <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Rol</th>
+                <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Pediatra Vinculado</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for user in users %}
+            <tr style="border-bottom: 1px solid #eee;">
+                <td style="padding: 10px;">{{ user.id }}</td>
+                <td style="padding: 10px;">{{ user.username }}</td>
+                <td style="padding: 10px;">
+                    {% if user.role == 'manager' %}
+                    <span
+                        style="background: #3498db; color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.9em;">Admin</span>
+                    {% else %}
+                    <span
+                        style="background: #2ecc71; color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.9em;">Usuario</span>
+                    {% endif %}
+                </td>
+                <td style="padding: 10px;">
+                    {% if user.pediatrician %}
+                    {{ user.pediatrician.name }}
+                    {% else %}
+                    <span style="color: #999;">-</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
 {% endblock %}

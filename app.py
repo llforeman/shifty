@@ -1200,18 +1200,71 @@ def profile():
     msg_category = ''
     
     if request.method == 'POST':
-        new_password = request.form.get('new_password')
-        confirm_password = request.form.get('confirm_password')
+        update_mode = request.form.get('update_mode')
         
-        if new_password and new_password == confirm_password:
-            current_user.set_password(new_password)
-            current_user.must_change_password = False # Clear forced flag
-            db.session.commit()
-            msg = 'Contraseña actualizada correctamente.'
-            msg_category = 'success'
-        else:
-            msg = 'Las contraseñas no coinciden.'
-            msg_category = 'error'
+        if update_mode == 'password':
+            new_password = request.form.get('new_password')
+            confirm_password = request.form.get('confirm_password')
+            
+            if new_password and new_password == confirm_password:
+                current_user.set_password(new_password)
+                current_user.must_change_password = False # Clear forced flag
+                db.session.commit()
+                msg = 'Contraseña actualizada correctamente.'
+                msg_category = 'success'
+            else:
+                msg = 'Las contraseñas no coinciden.'
+                msg_category = 'error'
+        
+        elif update_mode == 'details':
+            new_email = request.form.get('email')
+            new_name = request.form.get('name')
+            
+            try:
+                # Update User
+                if new_email and new_email != current_user.email:
+                    # Check uniqueness
+                    if User.query.filter_by(email=new_email).first():
+                         msg = 'El email ya está en uso.'
+                         msg_category = 'error'
+                    else:
+                        current_user.email = new_email
+                        current_user.username = new_email # Sync username
+                        
+                        # Update Pediatrician name if linked
+                        if current_user.pediatrician and new_name:
+                             # Check if name is taken by another ped?
+                             other_ped = Pediatrician.query.filter(Pediatrician.name == new_name, Pediatrician.id != current_user.pediatrician_id).first()
+                             if other_ped:
+                                 msg = 'El nombre de pediatra ya existe.'
+                                 msg_category = 'error'
+                             else:
+                                 current_user.pediatrician.name = new_name
+                                 db.session.commit()
+                                 msg = 'Información actualizada correctamente.'
+                                 msg_category = 'success'
+                        else:
+                             db.session.commit()
+                             msg = 'Email actualizado correctamente.'
+                             msg_category = 'success'
+                
+                # Just name update
+                elif current_user.pediatrician and new_name and new_name != current_user.pediatrician.name:
+                     other_ped = Pediatrician.query.filter(Pediatrician.name == new_name, Pediatrician.id != current_user.pediatrician_id).first()
+                     if other_ped:
+                         msg = 'El nombre de pediatra ya existe.'
+                         msg_category = 'error'
+                     else:
+                         current_user.pediatrician.name = new_name
+                         db.session.commit()
+                         msg = 'Nombre actualizado correctamente.'
+                         msg_category = 'success'
+                
+            except Exception as e:
+                db.session.rollback()
+                print(f"Error updating profile: {e}")
+                msg = f'Error al actualizar: {e}'
+                msg_category = 'error'
             
     return render_template('profile.html', msg=msg, msg_category=msg_category)
 
@@ -1312,7 +1365,10 @@ def admin_create_user():
             print(f"Error creating user: {e}")
             flash(f'Error al crear usuario: {e}', 'error')
             
-    return render_template('admin_create_user.html')
+    # Fetch all users for display
+    all_users = User.query.options(db.joinedload(User.pediatrician)).order_by(User.id.desc()).all()
+            
+    return render_template('admin_create_user.html', users=all_users)
 
 
 @app.route('/generate_schedule', methods=['POST'])

@@ -13,37 +13,53 @@
 
 <div style="margin-bottom: 30px;">
     <h2 style="color: #555; margin-bottom: 15px;">Información de Usuario</h2>
-    <table style="width: 100%; border-collapse: collapse;">
-        <tr style="border-bottom: 1px solid #ddd;">
-            <td style="padding: 10px; font-weight: bold; width: 30%;">Usuario:</td>
-            <td style="padding: 10px;">{{ current_user.username }}</td>
-        </tr>
-        <tr style="border-bottom: 1px solid #ddd;">
-            <td style="padding: 10px; font-weight: bold;">Rol:</td>
-            <td style="padding: 10px;">
-                {% if current_user.role == 'manager' %}
-                <span style="background: #3498db; color: white; padding: 4px 12px; border-radius: 4px;">Manager</span>
-                {% else %}
-                <span style="background: #2ecc71; color: white; padding: 4px 12px; border-radius: 4px;">Usuario</span>
-                {% endif %}
-            </td>
-        </tr>
-        <tr style="border-bottom: 1px solid #ddd;">
-            <td style="padding: 10px; font-weight: bold;">Pediatra Asociado:</td>
-            <td style="padding: 10px;">
-                {% if current_user.pediatrician_id %}
-                ID: {{ current_user.pediatrician_id }}
-                {% else %}
-                <span style="color: #e74c3c;">No vinculado</span>
-                {% endif %}
-            </td>
-        </tr>
-    </table>
+    <form method="POST">
+        <input type="hidden" name="update_mode" value="details">
+        <table style="width: 100%; border-collapse: collapse;">
+            <tr style="border-bottom: 1px solid #ddd;">
+                <td style="padding: 10px; font-weight: bold; width: 30%;">Email (Usuario):</td>
+                <td style="padding: 10px;">
+                    <input type="email" name="email" value="{{ current_user.email or current_user.username }}" required
+                        style="padding: 8px; width: 100%; border: 1px solid #ccc; border-radius: 4px;">
+                </td>
+            </tr>
+            <tr style="border-bottom: 1px solid #ddd;">
+                <td style="padding: 10px; font-weight: bold;">Nombre (Pediatra):</td>
+                <td style="padding: 10px;">
+                    {% if current_user.pediatrician %}
+                    <input type="text" name="name" value="{{ current_user.pediatrician.name }}" required
+                        style="padding: 8px; width: 100%; border: 1px solid #ccc; border-radius: 4px;">
+                    {% else %}
+                    <span style="color: #999;">No vinculado a Pediatra</span>
+                    {% endif %}
+                </td>
+            </tr>
+            <tr style="border-bottom: 1px solid #ddd;">
+                <td style="padding: 10px; font-weight: bold;">Rol:</td>
+                <td style="padding: 10px;">
+                    {% if current_user.role == 'manager' %}
+                    <span
+                        style="background: #3498db; color: white; padding: 4px 12px; border-radius: 4px;">Manager</span>
+                    {% else %}
+                    <span
+                        style="background: #2ecc71; color: white; padding: 4px 12px; border-radius: 4px;">Usuario</span>
+                    {% endif %}
+                </td>
+            </tr>
+        </table>
+        <div style="margin-top: 15px; text-align: right;">
+            <button type="submit"
+                style="background: #2ecc71; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer;">
+                Guardar Información
+            </button>
+        </div>
+    </form>
 </div>
 
 <div style="background: #ecf0f1; padding: 20px; border-radius: 6px;">
     <h2 style="color: #555; margin-bottom: 15px;">Cambiar Contraseña</h2>
     <form method="POST">
+        <input type="hidden" name="update_mode" value="password">
         <div style="margin-bottom: 15px;">
             <label for="new_password" style="display: block; margin-bottom: 5px; font-weight: bold;">Nueva
                 Contraseña:</label>
