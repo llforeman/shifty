@@ -1,5 +1,4 @@
 from datetime import datetime, date
-from app import db, Activity, Shift, ActivityType, User, Pediatrician
 
 def get_validation_alerts(service_id, target_date=None):
     """
@@ -10,6 +9,9 @@ def get_validation_alerts(service_id, target_date=None):
     Returns a list of alert dicts:
     [{'type': 'staffing|overlap', 'level': 'error|warning', 'message': '...'}]
     """
+    # Import inside function to avoid circular import with app.py
+    from app import db, ActivityType, Activity
+
     alerts = []
     
     if target_date is None:
@@ -54,6 +56,8 @@ def check_overlap(user_id, start_time, end_time, exclude_activity_id=None):
     Checks if user has overlapping activities.
     Returns True if overlap exists.
     """
+    from app import Activity
+
     query = Activity.query.filter(
         Activity.user_id == user_id,
         Activity.start_time < end_time,
@@ -64,3 +68,4 @@ def check_overlap(user_id, start_time, end_time, exclude_activity_id=None):
         query = query.filter(Activity.id != exclude_activity_id)
         
     return query.first() is not None
+
