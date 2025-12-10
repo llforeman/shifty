@@ -1721,6 +1721,32 @@ def superadmin_create_admin():
             flash(f'Error al crear admin: {e}', 'error')
     return redirect(url_for('superadmin_dashboard'))
 
+    return redirect(url_for('superadmin_dashboard'))
+
+@app.route('/superadmin/edit_org/<int:org_id>', methods=['POST'])
+@login_required
+@role_required('superadmin')
+def superadmin_edit_org(org_id):
+    name = request.form.get('name')
+    if name:
+        org = Organization.query.get_or_404(org_id)
+        org.name = name
+        db.session.commit()
+        flash('Hospital renombrado correctamente.', 'success')
+    return redirect(url_for('superadmin_dashboard'))
+
+@app.route('/superadmin/edit_service/<int:service_id>', methods=['POST'])
+@login_required
+@role_required('superadmin')
+def superadmin_edit_service(service_id):
+    name = request.form.get('name')
+    if name:
+        service = Service.query.get_or_404(service_id)
+        service.name = name
+        db.session.commit()
+        flash('Servicio renombrado correctamente.', 'success')
+    return redirect(url_for('superadmin_dashboard'))
+
 @app.route('/api/swap_shifts', methods=['POST'])
 @login_required
 @role_required('manager')

@@ -132,6 +132,15 @@
 
         {% if current_user.is_authenticated %}
 
+        {% if current_user.role == 'superadmin' %}
+        <a href="{{ url_for('superadmin_dashboard') }}"
+            class="{% if request.endpoint == 'superadmin_dashboard' %}active{% endif %}">
+            🎛️ Dashboard
+        </a>
+        <a href="{{ url_for('logout') }}" class="logout-btn">Cerrar Sesión</a>
+        {% else %}
+
+        {% if current_user.role != 'superadmin' %}
         <!-- COMMON TOP LINKS (Order: Notif, Profile, Calendar, Chat) -->
         <a href="{{ url_for('notifications_page') }}"
             class="{% if request.endpoint == 'notifications_page' %}active{% endif %}">
@@ -199,6 +208,7 @@
         </a>
         {% endif %}
 
+        {% endif %}
         {% endif %}
 
         <a href="{{ url_for('logout') }}" class="logout-btn">Cerrar Sesión</a>
