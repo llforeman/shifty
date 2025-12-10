@@ -530,6 +530,30 @@ def activities_page():
         # Fetch all user activities (we filter recurrence manually)
         raw_activities = Activity.query.filter_by(user_id=current_user.id).all()
         
+        from sqlalchemy import func, distinct
+        
+        # --- STAFFING VALIDATION (Max Staff) ---
+        # Map limits
+        type_limits = {at.id: at.max_staff for at in activity_types if at.max_staff}
+        
+        # Fetch Global Counts for this week (Unique Users per Type per Day)
+        # Assuming database returns date object or string for func.date
+        global_counts_query = db.session.query(
+            Activity.activity_type_id, 
+            func.date(Activity.start_time), 
+            func.count(distinct(Activity.user_id))
+        ).join(Activity.user).filter(
+            User.active_service_id == g.current_service.id,
+            Activity.start_time >= datetime.combine(start_date, datetime.min.time()),
+            Activity.end_time <= datetime.combine(end_date, datetime.max.time())
+        ).group_by(
+            Activity.activity_type_id, 
+            func.date(Activity.start_time)
+        ).all()
+        
+        # Map: (type_id, date_obj_or_str) -> count
+        global_counts = {(r[0], r[1]): r[2] for r in global_counts_query}
+
         # 3. Build Hourly Grid
         # Structure: events_by_day[0..6] = [ {title, start_hour, end_hour, type='shift'|'activity', place} ]
         events_by_day = {i: [] for i in range(7)}
@@ -569,19 +593,12 @@ def activities_page():
             
             elif act.recurrence_type == 'weekly':
                 # Find date of this weekday in current week
-                target_date = start_date + timedelta(days=act.recurrence_day) # ERROR: recurrence_day might be mismatch with start_date weekday base.
-                # Correction: We need to find the date corresponding to act.recurrence_day (0-6) within [start_date, end_date]
-                
-                # act.recurrence_day is 0-6. start_date is Monday (0).
-                # So if start_date is Mon(0) and recurrence_day is 0, target is start_date + 0.
-                # If recurrence_day is 2 (Wed), target is start_date + 2.
-                # Since start_date is always Monday (as per logic above: today - timedelta(days=today.weekday())), this simple addition works.
-                
-                target_date = start_date + timedelta(days=act.recurrence_day)
+                diff = act.recurrence_day - start_date.weekday()
+                target_date = start_date + timedelta(days=diff)
                 
                 # Check end date
                 if (not act.recurrence_end_date or target_date <= act.recurrence_end_date) and target_date >= act.start_time.date():
-                    if target_date not in exceptions:
+                    if target_date not in exceptions and start_date <= target_date <= end_date:
                         act_dates.append(target_date)
                     
             for d in act_dates:
@@ -593,9 +610,22 @@ def activities_page():
                 # Helper to format time strings for the form
                 start_iso = datetime.combine(d, act.start_time.time()).strftime('%Y-%m-%dT%H:%M')
                 end_iso = datetime.combine(d, act.end_time.time()).strftime('%Y-%m-%dT%H:%M')
-                if e_hour == 24: # Correction for ISO string if it ends at midnight next day
+                if e_hour == 24: 
                      end_iso = (datetime.combine(d, datetime.min.time()) + timedelta(days=1)).strftime('%Y-%m-%dT%H:%M')
     
+                # Determine Color (Check Staffing Limit Violation)
+                color = '#4299e1' # Blue Default
+                if act.activity_type_id in type_limits:
+                     limit = type_limits[act.activity_type_id]
+                     # Check global count for this day
+                     # Handle potential Date vs String key type match logic
+                     c = global_counts.get((act.activity_type_id, d), 0)
+                     if c == 0:
+                          c = global_counts.get((act.activity_type_id, str(d)), 0)
+                          
+                     if c > limit:
+                         color = '#e74c3c' # Red
+                
                 events_by_day[day_idx].append({
                     'id': act.id,
                     'title': act.activity_type.name if act.activity_type else (act.name or 'Unknown'),
@@ -603,7 +633,7 @@ def activities_page():
                     'start_hour': s_hour,
                     'end_hour': e_hour,
                     'type': 'activity',
-                    'color': '#4299e1', # Blue
+                    'color': color,
                     'activity_type_id': act.activity_type_id,
                     'start_iso': start_iso,
                     'end_iso': end_iso,
@@ -2203,6 +2233,25 @@ def global_calendar():
         Activity.end_time <= datetime.combine(end_of_week, datetime.max.time())
     ).all()
     
+    # Calculate Staffing Violations (Max Staff)
+    # 1. Map limits
+    type_limits = {at.id: at.max_staff for at in ActivityType.query.filter_by(service_id=g.current_service.id).all() if at.max_staff is not None}
+    
+    # 2. Count Daily Staffing
+    daily_counts = {} # (date, type_id) -> Set of user_ids
+    for a in activities:
+        if a.activity_type_id and a.activity_type_id in type_limits:
+            d = a.start_time.date()
+            k = (d, a.activity_type_id)
+            if k not in daily_counts: daily_counts[k] = set()
+            daily_counts[k].add(a.user_id)
+            
+    # 3. Identify Violation Keys
+    violation_keys = set()
+    for k, users in daily_counts.items():
+        if len(users) > type_limits[k[1]]:
+            violation_keys.add(k)
+
     # Calculate Overlaps for Visualization
     conflict_ids = set()
     # Sort by user then start_time to compare adjacent activities
@@ -2268,12 +2317,19 @@ def global_calendar():
         # Resolve type name
         a_type_name = a.activity_type.name if a.activity_type else (a.name or 'Evento')
         # Format time
-        t_str = f"{a.start_time.strftime('%H:%M')}-{a.end_time.strftime('%H:%M')}"
+        t_str = f"{a.start_time.strftime('%H:%M')} - {a.end_time.strftime('%H:%M')}"
         
         # Check if user has a pediatrician linked (Staff Name)
         p_name = a.user.pediatrician.name if a.user.pediatrician else a.user.username
         
-        add_event(a.start_time.date(), a_type_name, p_name, get_color(a_type_name), t_str, a_type_name)
+        # Determine Color
+        color = get_color(a_type_name)
+        if a.id in conflict_ids:
+            color = '#e74c3c' # RED for overlap
+        elif a.activity_type_id and (a.start_time.date(), a.activity_type_id) in violation_keys:
+             color = '#e74c3c' # RED for staffing violation
+        
+        add_event(a.start_time.date(), a_type_name, p_name, color, t_str, a_type_name)
 
     return render_template('global_calendar.html', 
                            days=days, 
