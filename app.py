@@ -2088,6 +2088,112 @@ def debug_migrate_activity_types():
              return f"Migration might have already run? Error: {e}"
         return f"Migration failed: {e}"
 
+@app.route('/global_calendar')
+@login_required
+def global_calendar():
+    # 1. Date Logic
+    week_offset = request.args.get('week_offset', 0, type=int)
+    today = date.today()
+    start_of_week = today - timedelta(days=today.weekday()) + timedelta(weeks=week_offset)
+    end_of_week = start_of_week + timedelta(days=6)
+    
+    days = [start_of_week + timedelta(days=i) for i in range(7)]
+    day_names = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
+    
+    # 2. Fetch Data (Activities + Shifts)
+    # Using specific service scope
+    # Note: Shift doesn't store explicit start/end time usually, standard is morning? 
+    # Or Shift is just "Guardia" which is 24h or specific?
+    # For now assuming Shift = "Guardia" (24h or 8am-8am) and Activity has times.
+    
+    # Needs: Service filter
+    if not g.current_service:
+        flash("No service context.", "error")
+        return redirect(url_for('profile'))
+
+    activities = Activity.query.filter(
+        Activity.user.has(active_service_id=g.current_service.id), # Filter by user's service? No, activity's context.
+        # Actually Activity doesn't have service_id directly, but User does. 
+        # But wait, User.active_service_id changes on login.
+        # We need to filter generally by users belonging to this service (via Pediatrician).
+        Activity.start_time >= datetime.combine(start_of_week, datetime.min.time()),
+        Activity.end_time <= datetime.combine(end_of_week, datetime.max.time())
+    ).all()
+    
+    # Shifts
+    shifts = Shift.query.join(Pediatrician).filter(
+        Pediatrician.service_id == g.current_service.id,
+        Shift.date >= start_of_week,
+        Shift.date <= end_of_week
+    ).all()
+
+    # 3. Process Data for Views
+    events_by_date = {} # Key: 'YYYY-MM-DD', Value: List of events
+    events_by_activity = {} # Key: ActivityName, Value: { 'YYYY-MM-DD': [events] }
+    
+    # Helpers
+    def add_event(date_obj, title, ped_name, color, time_str, category):
+        d_str = date_obj.strftime('%Y-%m-%d')
+        
+        # View 1
+        if d_str not in events_by_date: events_by_date[d_str] = []
+        events_by_date[d_str].append({
+            'title': title,
+            'pediatrician': ped_name,
+            'color': color,
+            'time_str': time_str,
+            'category': category
+        })
+        
+        # View 2
+        if category not in events_by_activity: events_by_activity[category] = {}
+        if d_str not in events_by_activity[category]: events_by_activity[category][d_str] = []
+        events_by_activity[category][d_str].append({
+            'pediatrician': ped_name,
+            'time_str': time_str
+        })
+
+    # Color Map (Simple hash or static)
+    colors = {
+        'Guardia': '#e74c3c', # Red
+        'Saliente': '#95a5a6', # Grey
+        'Consulta': '#3498db', # Blue
+        'Vacaciones': '#f1c40f', # Yellow
+        'Baja': '#2c3e50', # Dark
+        'Congreso': '#9b59b6' # Purple
+    }
+    def get_color(name):
+        return colors.get(name, '#2ecc71') # Default Green
+
+    # Process Shifts
+    for s in shifts:
+        # Assuming Shift is a "Guardia" typically
+        title = s.type if s.type else 'Guardia'
+        add_event(s.date, title, s.pediatrician.name, get_color(title), '24h', title)
+
+    # Process Activities
+    # Note: Filter out if it's not relevant? 
+    # Just show everything.
+    for a in activities:
+        # Resolve type name
+        a_type_name = a.activity_type.name if a.activity_type else (a.name or 'Evento')
+        # Format time
+        t_str = f"{a.start_time.strftime('%H:%M')}-{a.end_time.strftime('%H:%M')}"
+        
+        # Check if user has a pediatrician linked (Staff Name)
+        p_name = a.user.pediatrician.name if a.user.pediatrician else a.user.username
+        
+        add_event(a.start_time.date(), a_type_name, p_name, get_color(a_type_name), t_str, a_type_name)
+
+    return render_template('global_calendar.html', 
+                           days=days, 
+                           day_names=day_names,
+                           week_offset=week_offset,
+                           start_date=start_of_week,
+                           end_date=end_of_week,
+                           events_by_date=events_by_date,
+                           events_by_activity=events_by_activity)
+
 if __name__ == '__main__':
     # Initialize database before running the app
     init_db_and_seed()
