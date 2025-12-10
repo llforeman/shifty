@@ -7,7 +7,7 @@ from datetime import datetime
 from generate_schedule import generate_and_save
 from app import app
 
-def generate_schedule_task(start_year, start_month, end_year, end_month):
+def generate_schedule_task(start_year, start_month, end_year, end_month, service_id):
     """
     Background task to generate schedule.
     This function is executed by the RQ worker.
@@ -15,7 +15,7 @@ def generate_schedule_task(start_year, start_month, end_year, end_month):
     try:
         # Run the schedule generation
         with app.app_context():
-            generate_and_save(start_year, start_month, end_year, end_month)
+            generate_and_save(start_year, start_month, end_year, end_month, service_id)
         
         return {
             'status': 'completed',

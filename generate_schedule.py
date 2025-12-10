@@ -11,7 +11,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # --- CONFIGURATION ---
-def get_config():
+def get_config(service_id):
     defaults = {
         'S1': 2, 'S2': 2, 'M_START': 3, 'M_MIN': 1,
         'BALANCE_ALPHA': 1.0, 'USE_LEXICOGRAPHIC_FAIRNESS': True,
@@ -22,7 +22,7 @@ def get_config():
     }
     config = defaults.copy()
     try:
-        db_configs = GlobalConfig.query.all()
+        db_configs = GlobalConfig.query.filter_by(service_id=service_id).all()
         for c in db_configs:
             if c.key in config:
                 if c.value.lower() == 'true': config[c.key] = True
@@ -114,7 +114,9 @@ def process_month(year, month, xls, ped_sheets, ped_names, pediatricians):
 
     for i, sheet_name in enumerate(ped_sheets):
         df = pd.read_excel(xls, sheet_name=sheet_name)
-        ped_id = i + 1
+        # Map sheet name to DB ID
+        ped_id = next((pid for pid, name in ped_names.items() if name == sheet_name), None)
+        if not ped_id: continue # Should not happen
         
         number_col = get_column_name(df, 'number')
         weekend_col = get_column_name(df, 'weekend')
@@ -145,11 +147,15 @@ def process_month(year, month, xls, ped_sheets, ped_names, pediatricians):
         cannot_do_days[ped_id] = cannot_work
 
     
-    # --- NEW: Read Stored Preferences from DB ---
     with app.app_context():
+        # Filter preferences by peds in this service (optimization)
+        # Or implicitly by join.
+        # We need peds in this calculation.
+        relevant_peds = list(ped_names.keys())
         db_prefs = Preference.query.filter(
             Preference.date >= start_date,
-            Preference.date <= end_date
+            Preference.date <= end_date,
+            Preference.pediatrician_id.in_(relevant_peds)
         ).all()
         
         for pref in db_prefs:
@@ -250,10 +256,17 @@ def combine_month_with_overlap(year, month, M_overlap, xls, ped_sheets, ped_name
         'no_previous_day_shifts': cur['no_previous_day_shifts']
     }
 
-def generate_and_save(start_year=2026, start_month=7, end_year=2026, end_month=12):
+def generate_and_save(start_year=2026, start_month=7, end_year=2026, end_month=12, service_id=None):
     with app.app_context():
-        logger.info(f"Starting schedule generation for {start_year}/{start_month} to {end_year}/{end_month}")
-        CONF = get_config()
+        logger.info(f"Starting schedule generation for {start_year}/{start_month} to {end_year}/{end_month} (Service {service_id})")
+        
+        if not service_id:
+            # Fallback for manual runs without ID - assume default or error
+            # For back-compat, maybe assume ID=1
+             service_id = 1
+             logger.warning("No service_id provided, defaulting to 1")
+
+        CONF = get_config(service_id)
         
         # Only clear shifts in the target date range
 
@@ -265,20 +278,32 @@ def generate_and_save(start_year=2026, start_month=7, end_year=2026, end_month=1
         else:
             end_clean = (datetime(end_year, end_month + 1, 1) - timedelta(days=1)).date()
         
-        DraftShift.query.filter(DraftShift.date >= start_clean, DraftShift.date <= end_clean).delete()
+        DraftShift.query.filter(
+            DraftShift.date >= start_clean, 
+            DraftShift.date <= end_clean,
+            DraftShift.pediatrician.has(service_id=service_id)
+        ).delete(synchronize_session=False)
         db.session.commit()
 
         xls = pd.ExcelFile('year26.xlsx')
         ped_sheets = [sheet for sheet in xls.sheet_names if sheet != 'MandatoryShifts']
-        ped_names = {i + 1: name for i, name in enumerate(ped_sheets)}
-        pediatricians = list(ped_names.keys())
         
-        # Ensure Peds exist
-        for pid, name in ped_names.items():
-            if not db.session.get(Pediatrician, pid):
-                print(f"Adding missing pediatrician: {name} (ID={pid})")
-                db.session.add(Pediatrician(id=pid, name=name))
+        # Map Name -> DB ID
+        ped_names = {} # ID: Name
+        
+        # Ensure Peds exist in DB for this service
+        for sheet_name in ped_sheets:
+            # Look up by name and service
+            ped = Pediatrician.query.filter_by(name=sheet_name, service_id=service_id).first()
+            if not ped:
+                print(f"Adding missing pediatrician: {sheet_name} (Service={service_id})")
+                ped = Pediatrician(name=sheet_name, service_id=service_id)
+                db.session.add(ped)
                 db.session.commit()
+            
+            ped_names[ped.id] = sheet_name
+        
+        pediatricians = list(ped_names.keys()) # List of DB IDs
 
         prev_overlap_mandatory = {p: set() for p in pediatricians}
         cumulative_actual_free = {p: 0.0 for p in pediatricians}
