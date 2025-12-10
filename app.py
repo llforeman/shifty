@@ -670,10 +670,15 @@ def activities_page():
                         current_cluster.append(evt)
                         cluster_end = max(cluster_end, evt['end_hour'])
                     else:
+                        # Mark conflicts
+                        if len(current_cluster) > 1:
+                             for e in current_cluster: e['color'] = '#e74c3c'
                         clusters.append(current_cluster)
                         current_cluster = [evt]
                         cluster_end = evt['end_hour']
             if current_cluster:
+                if len(current_cluster) > 1:
+                     for e in current_cluster: e['color'] = '#e74c3c'
                 clusters.append(current_cluster)
                 
             # Assign width and left
@@ -2292,17 +2297,10 @@ def global_calendar():
             'color': color
         })
 
-    # Color Map (Simple hash or static)
-    colors = {
-        'Guardia': '#e74c3c', # Red
-        'Saliente': '#95a5a6', # Grey
-        'Consulta': '#3498db', # Blue
-        'Vacaciones': '#f1c40f', # Yellow
-        'Baja': '#2c3e50', # Dark
-        'Congreso': '#9b59b6' # Purple
-    }
+    # Color Strategy: Default Blue, Red for conflicts
     def get_color(name):
-        return colors.get(name, '#2ecc71') # Default Green
+        return '#3498db' # Blue for all normal activities
+
 
     # Process Shifts
     for s in shifts:
