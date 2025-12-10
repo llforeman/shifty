@@ -31,11 +31,40 @@
 
         <div style="margin-bottom: 20px;">
             <label style="display: block; margin-bottom: 5px; font-weight: bold;">Rol:</label>
-            <select name="role" style="width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px;">
-                <option value="user" selected>Usuario (Pediatra)</option>
+            <select name="role" id="role_select"
+                style="width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px;">
+                <option value="user" selected>Usuario (Pediatra/Staff)</option>
                 <option value="manager">Administrador (Manager)</option>
             </select>
         </div>
+
+        <div id="staff_fields">
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; margin-bottom: 5px; font-weight: bold;">Tipo de Personal:</label>
+                <select name="staff_type"
+                    style="width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px;">
+                    <option value="adjunto">Adjunto</option>
+                    <option value="residente">Residente</option>
+                </select>
+            </div>
+
+            <div style="margin-bottom: 20px;">
+                <label style="font-weight: bold;">
+                    <input type="checkbox" name="is_mir" value="yes"> Es MIR
+                </label>
+            </div>
+        </div>
+
+        <script>
+            document.getElementById('role_select').addEventListener('change', function () {
+                var staffFields = document.getElementById('staff_fields');
+                if (this.value === 'manager') {
+                    staffFields.style.display = 'none';
+                } else {
+                    staffFields.style.display = 'block';
+                }
+            });
+        </script>
 
         <div class="alert alert-warning"
             style="background-color: #fff3cd; color: #856404; padding: 10px; border-radius: 4px; margin-bottom: 20px;">
@@ -64,6 +93,7 @@
                 <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Usuario / Email</th>
                 <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Rol</th>
                 <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Pediatra Vinculado</th>
+                <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Detalles</th>
             </tr>
         </thead>
         <tbody>
@@ -85,6 +115,17 @@
                     {{ user.pediatrician.name }}
                     {% else %}
                     <span style="color: #999;">-</span>
+                    {% endif %}
+                </td>
+                <td style="padding: 10px;">
+                    {% if user.pediatrician %}
+                    <span class="badge" style="background: #eee; padding: 2px 5px; border-radius: 4px;">{{
+                        user.pediatrician.type or '?' }}</span>
+                    {% if user.pediatrician.mir %}
+                    <span class="badge" style="background: #ffeaa7; padding: 2px 5px; border-radius: 4px;">MIR</span>
+                    {% endif %}
+                    {% else %}
+                    -
                     {% endif %}
                 </td>
             </tr>

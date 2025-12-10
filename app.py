@@ -1407,6 +1407,8 @@ def admin_create_user():
         name = request.form.get('name')
         email = request.form.get('email')
         role = request.form.get('role')
+        staff_type = request.form.get('staff_type')
+        is_mir = request.form.get('is_mir') == 'yes'
         
         # Validation
         if User.query.filter_by(email=email).first():
@@ -1420,9 +1422,17 @@ def admin_create_user():
                 existing_ped = Pediatrician.query.filter_by(name=name, service_id=g.current_service.id).first()
                 if existing_ped:
                     ped_id = existing_ped.id
+                    # Update existing details just in case
+                    existing_ped.type = staff_type
+                    existing_ped.mir = is_mir
                 else:
                     # Create new Pediatrician
-                    new_ped = Pediatrician(name=name, service_id=g.current_service.id)
+                    new_ped = Pediatrician(
+                        name=name, 
+                        service_id=g.current_service.id,
+                        type=staff_type,
+                        mir=is_mir
+                    )
                     db.session.add(new_ped)
                     db.session.commit()
                     ped_id = new_ped.id

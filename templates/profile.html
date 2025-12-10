@@ -35,6 +35,19 @@
                 </td>
             </tr>
             <tr style="border-bottom: 1px solid #ddd;">
+                <td style="padding: 10px; font-weight: bold;">Hospital:</td>
+                <td style="padding: 10px;">
+                    {{ current_user.active_service.organization.name if current_user.active_service else 'Sin Asignar'
+                    }}
+                </td>
+            </tr>
+            <tr style="border-bottom: 1px solid #ddd;">
+                <td style="padding: 10px; font-weight: bold;">Servicio:</td>
+                <td style="padding: 10px;">
+                    {{ current_user.active_service.name if current_user.active_service else 'Sin Asignar' }}
+                </td>
+            </tr>
+            <tr style="border-bottom: 1px solid #ddd;">
                 <td style="padding: 10px; font-weight: bold;">Rol:</td>
                 <td style="padding: 10px;">
                     {% if current_user.role == 'manager' %}
@@ -46,6 +59,25 @@
                     {% endif %}
                 </td>
             </tr>
+
+            {% if current_user.pediatrician %}
+            <tr style="border-bottom: 1px solid #ddd;">
+                <td style="padding: 10px; font-weight: bold;">Tipo de Personal:</td>
+                <td style="padding: 10px; text-transform: capitalize;">
+                    {{ current_user.pediatrician.type or 'No especificado' }}
+                </td>
+            </tr>
+            <tr style="border-bottom: 1px solid #ddd;">
+                <td style="padding: 10px; font-weight: bold;">MIR:</td>
+                <td style="padding: 10px;">
+                    {% if current_user.pediatrician.mir %}
+                    <span style="color: green; font-weight: bold;">Sí</span>
+                    {% else %}
+                    No
+                    {% endif %}
+                </td>
+            </tr>
+            {% endif %}
         </table>
         <div style="margin-top: 15px; text-align: right;">
             <button type="submit"
