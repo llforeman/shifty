@@ -2215,6 +2215,8 @@ def global_calendar():
     start_of_week = today - timedelta(days=today.weekday()) + timedelta(weeks=week_offset)
     end_of_week = start_of_week + timedelta(days=6)
     
+    view_mode = request.args.get('view', 'standard')
+    
     days = [start_of_week + timedelta(days=i) for i in range(7)]
     day_names = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
     
@@ -2449,7 +2451,8 @@ def global_calendar():
                            end_date=end_of_week,
                            events_by_activity=events_by_activity,
                            cell_heights=cell_heights,
-                           row_owners=row_owners)
+                           row_owners=row_owners,
+                           view_mode=view_mode)
 
 @app.route('/debug/validation')
 @login_required

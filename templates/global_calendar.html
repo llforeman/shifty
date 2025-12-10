@@ -91,13 +91,22 @@
 {% block content %}
 <div class="calendar-controls">
     <div>
-        <a href="{{ url_for('global_calendar', week_offset=week_offset-1) }}" class="btn btn-sm btn-secondary">&lt;
+        <a href="{{ url_for('global_calendar', week_offset=week_offset-1, view=view_mode) }}"
+            class="btn btn-sm btn-secondary">&lt;
             Anterior</a>
         <span style="font-size: 1.2em; font-weight: bold; margin: 0 15px;">
             Semana {{ start_date.strftime('%d/%m') }} - {{ end_date.strftime('%d/%m/%Y') }}
         </span>
-        <a href="{{ url_for('global_calendar', week_offset=week_offset+1) }}" class="btn btn-sm btn-secondary">Siguiente
+        <a href="{{ url_for('global_calendar', week_offset=week_offset+1, view=view_mode) }}"
+            class="btn btn-sm btn-secondary">Siguiente
             &gt;</a>
+    </div>
+
+    <div class="btn-group">
+        <a href="{{ url_for('global_calendar', week_offset=week_offset, view='standard') }}"
+            class="btn btn-sm {{ 'btn-primary' if view_mode == 'standard' else 'btn-outline-primary' }}">Standard</a>
+        <a href="{{ url_for('global_calendar', week_offset=week_offset, view='timeline') }}"
+            class="btn btn-sm {{ 'btn-primary' if view_mode == 'timeline' else 'btn-outline-primary' }}">Horario</a>
     </div>
 </div>
 
@@ -119,7 +128,11 @@
                 {% for day in days %}
                 {% set date_str = day.strftime('%Y-%m-%d') %}
                 {% set cell_h = cell_heights.get(activity_type, {}).get(date_str, 50) %}
-                <td class="activity-cell" style="height: {{ cell_h }}px;">
+
+                <td class="activity-cell" style="{{ 'height: ' ~ cell_h ~ 'px;' if view_mode == 'timeline' else '' }}">
+
+                    {% if view_mode == 'timeline' %}
+                    <!-- TIMELINE VIEW -->
 
                     <!-- Background Names -->
                     {% set day_owners = row_owners.get(activity_type, {}).get(date_str, {}) %}
@@ -134,13 +147,29 @@
                     {% for event in activity_data[date_str] %}
                     <div class="timeline-event" title="{{ event.pediatrician }} ({{ event.time_str }})"
                         style="left: {{ event.left }}%; 
-                               top: {{ event.top }}px; 
-                               background-color: {{ event.color }};
-                               {{ 'border-top-left-radius: 0; border-bottom-left-radius: 0;' if event.blend_left else '' }}
-                               {{ 'border-top-right-radius: 0; border-bottom-right-radius: 0; width: calc(' ~ event.width ~ '% + 1px);' if event.blend_right else 'width: ' ~ event.width ~ '%;' }}">
+                                   top: {{ event.top }}px; 
+                                   background-color: {{ event.color }};
+                                   {{ 'border-top-left-radius: 0; border-bottom-left-radius: 0;' if event.blend_left else '' }}
+                                   {{ 'border-top-right-radius: 0; border-bottom-right-radius: 0; width: calc(' ~ event.width ~ '% + 1px);' if event.blend_right else 'width: ' ~ event.width ~ '%;' }}">
                     </div>
                     {% endfor %}
                     {% endif %}
+
+                    {% else %}
+                    <!-- STANDARD VIEW (LIST) -->
+                    <div style="padding: 5px;">
+                        {% if activity_data[date_str] %}
+                        {% for event in activity_data[date_str] %}
+                        <div
+                            style="font-size: 0.85em; margin-bottom: 4px; padding: 2px; background-color: #f8f9fa; border-left: 3px solid {{ event.color }}; border-radius: 2px;">
+                            <span style="font-weight: bold; color: #555;">({{ event.time_str }})</span>
+                            {{ event.pediatrician }}
+                        </div>
+                        {% endfor %}
+                        {% endif %}
+                    </div>
+                    {% endif %}
+
                 </td>
                 {% endfor %}
             </tr>
