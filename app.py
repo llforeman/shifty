@@ -462,6 +462,29 @@ def activities_page():
                     'color': '#4299e1'
                 })
         
+        # -----------------
+        # ADD SHIFTS TO CALENDAR
+        # -----------------
+        if current_user.pediatrician_id:
+            shifts = Shift.query.filter(
+                Shift.pediatrician_id == current_user.pediatrician_id,
+                Shift.date >= start_date,
+                Shift.date <= end_date
+            ).all()
+            
+            for shift in shifts:
+                 monthly_events[shift.date.day].append({
+                    'id': f"shift_{shift.id}", # distinct ID format
+                    'title': f"{shift.type} (Shift)", # Indicate it's a shift
+                    'time': '00:00', # Shifts usually imply ~24h or set blocks, handle as all-day or 00:00
+                    'start_iso': shift.date.strftime('%Y-%m-%dT00:00'),
+                    'end_iso': shift.date.strftime('%Y-%m-%dT23:59'),
+                    'activity_type_id': '',
+                    'recurrence_type': 'once',
+                    'color': '#48bb78', # Green for assigned shifts
+                    'is_shift': True # Flag to disable editing if needed
+                })
+        
         # Sort events by time
         for day in monthly_events:
             monthly_events[day].sort(key=lambda x: x['time'])

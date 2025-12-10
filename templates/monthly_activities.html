@@ -138,14 +138,16 @@
         <span class="day-number">{{ day }}</span>
         {% if events[day] %}
         {% for event in events[day] %}
-        <div class="activity-item" style="background-color: {{ event.color }}; color: white;" onclick="openEditActivityModal({
+        <div class="activity-item" style="background-color: {{ event.color }}; color: white;" {% if event.is_shift %}
+            onclick="alert('Las guardias asignadas no se pueden editar aquí. Contacta con el administrador.')" {% else
+            %} onclick="openEditActivityModal({
                     id: '{{ event.id }}',
                     typeId: '{{ event.activity_type_id }}',
                     start: '{{ event.start_iso }}',
                     end: '{{ event.end_iso }}',
                     recurrence: '{{ event.recurrence_type }}',
                     date: '{{ event.start_iso[:10] }}'
-                 }, event)">
+                 }, event)" {% endif %}>
             <strong>{{ event.time }}</strong> {{ event.title }}
         </div>
         {% endfor %}
