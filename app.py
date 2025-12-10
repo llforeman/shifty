@@ -2414,6 +2414,8 @@ def global_calendar():
                            days=days, 
                            day_names=day_names,
                            week_offset=week_offset,
+                           start_date=start_of_week,
+                           end_date=end_of_week,
                            events_by_activity=events_by_activity,
                            cell_heights=cell_heights)
 
