@@ -2128,24 +2128,13 @@ def global_calendar():
     ).all()
 
     # 3. Process Data for Views
-    events_by_date = {} # Key: 'YYYY-MM-DD', Value: List of events
     events_by_activity = {} # Key: ActivityName, Value: { 'YYYY-MM-DD': [events] }
     
     # Helpers
     def add_event(date_obj, title, ped_name, color, time_str, category):
         d_str = date_obj.strftime('%Y-%m-%d')
         
-        # View 1
-        if d_str not in events_by_date: events_by_date[d_str] = []
-        events_by_date[d_str].append({
-            'title': title,
-            'pediatrician': ped_name,
-            'color': color,
-            'time_str': time_str,
-            'category': category
-        })
-        
-        # View 2
+        # View 2 (Activity Matrix)
         if category not in events_by_activity: events_by_activity[category] = {}
         if d_str not in events_by_activity[category]: events_by_activity[category][d_str] = []
         events_by_activity[category][d_str].append({
@@ -2191,7 +2180,6 @@ def global_calendar():
                            week_offset=week_offset,
                            start_date=start_of_week,
                            end_date=end_of_week,
-                           events_by_date=events_by_date,
                            events_by_activity=events_by_activity)
 
 if __name__ == '__main__':
