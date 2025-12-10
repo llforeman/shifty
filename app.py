@@ -272,8 +272,11 @@ class ActivityType(db.Model):
     __tablename__ = 'activity_type'
     
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), unique=True, nullable=False)
+    # name is unique PER SERVICE
+    name = db.Column(db.String(100), nullable=False)
     service_id = db.Column(db.Integer, db.ForeignKey('service.id'), nullable=True) # Nullable for migration
+    
+    __table_args__ = (db.UniqueConstraint('name', 'service_id', name='uq_activity_name_service'),)
     
     def __repr__(self):
         return f"<ActivityType {self.name}>"
@@ -1981,7 +1984,8 @@ def create_notif(user_id, msg):
 @login_required
 @role_required('manager')
 def admin_activity_types_page():
-    activity_types = ActivityType.query.order_by(ActivityType.name).all()
+    # Filter by current service
+    activity_types = ActivityType.query.filter_by(service_id=g.current_service.id).order_by(ActivityType.name).all()
     return render_template('admin_activity_types.html', activity_types=activity_types)
 
 @app.route('/admin/activity_types/add', methods=['POST'])
@@ -1990,8 +1994,9 @@ def admin_activity_types_page():
 def admin_add_activity_type():
     name = request.form.get('name')
     if name:
-        if not ActivityType.query.filter_by(name=name).first():
-            db.session.add(ActivityType(name=name))
+        # Check uniqueness in THIS service
+        if not ActivityType.query.filter_by(name=name, service_id=g.current_service.id).first():
+            db.session.add(ActivityType(name=name, service_id=g.current_service.id))
             db.session.commit()
     return redirect(url_for('admin_activity_types_page'))
 
