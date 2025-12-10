@@ -2341,6 +2341,8 @@ def global_calendar():
         if cat not in events_by_category: events_by_category[cat] = []
         events_by_category[cat].append(e)
         
+    row_owners = {} # Store owner names for background labels
+
     for cat, evts in events_by_category.items():
         # Sort by start time
         evts.sort(key=lambda x: x['start_dt'])
@@ -2383,6 +2385,8 @@ def global_calendar():
                     assigned_row += 1
             
             e['row_index'] = assigned_row
+            
+        row_owners[cat] = day_row_map
 
     # --- C. Split & Project to View ---
     for e in logical_events:
@@ -2444,7 +2448,8 @@ def global_calendar():
                            start_date=start_of_week,
                            end_date=end_of_week,
                            events_by_activity=events_by_activity,
-                           cell_heights=cell_heights)
+                           cell_heights=cell_heights,
+                           row_owners=row_owners)
 
 @app.route('/debug/validation')
 @login_required

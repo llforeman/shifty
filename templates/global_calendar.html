@@ -50,27 +50,39 @@
         min-height: 50px;
     }
 
+    .row-label {
+        position: absolute;
+        width: 100%;
+        height: 20px;
+        line-height: 20px;
+        font-size: 11px;
+        color: #495057;
+        text-align: center;
+        z-index: 5;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        font-weight: 600;
+        pointer-events: none;
+        /* Let clicks pass through */
+    }
+
     .timeline-event {
         position: absolute;
         height: 20px;
-        line-height: 20px;
-        /* Center text vertically */
-        font-size: 11px;
-        color: white;
         border-radius: 3px;
-        padding: 0 5px;
-        overflow: hidden;
-        white-space: nowrap;
-        text-overflow: ellipsis;
-        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
         z-index: 10;
         cursor: pointer;
-        transition: transform 0.1s, z-index 0.1s;
+        opacity: 0.6;
+        /* Semi-transparent to show background or just light */
+        transition: opacity 0.1s, transform 0.1s;
     }
 
     .timeline-event:hover {
         z-index: 20;
-        transform: scale(1.02);
+        opacity: 1.0;
+        transform: scaleY(1.1);
         box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
     }
 </style>
@@ -108,13 +120,24 @@
                 {% set date_str = day.strftime('%Y-%m-%d') %}
                 {% set cell_h = cell_heights.get(activity_type, {}).get(date_str, 50) %}
                 <td class="activity-cell" style="height: {{ cell_h }}px;">
+
+                    <!-- Background Names -->
+                    {% set day_owners = row_owners.get(activity_type, {}).get(date_str, {}) %}
+                    {% for row_idx, owner_name in day_owners.items() %}
+                    <div class="row-label" style="top: {{ row_idx * 25 }}px;">
+                        {{ owner_name }}
+                    </div>
+                    {% endfor %}
+
+                    <!-- Timeline Events -->
                     {% if activity_data[date_str] %}
                     {% for event in activity_data[date_str] %}
                     <div class="timeline-event" title="{{ event.pediatrician }} ({{ event.time_str }})"
-                        style="left: {{ event.left }}%; width: {{ event.width }}%; top: {{ event.top }}px; background-color: {{ event.color }};
+                        style="left: {{ event.left }}%; 
+                               top: {{ event.top }}px; 
+                               background-color: {{ event.color }};
                                {{ 'border-top-left-radius: 0; border-bottom-left-radius: 0;' if event.blend_left else '' }}
-                               {{ 'border-top-right-radius: 0; border-bottom-right-radius: 0;' if event.blend_right else '' }}">
-                        {{ event.pediatrician }}
+                               {{ 'border-top-right-radius: 0; border-bottom-right-radius: 0; width: calc(' ~ event.width ~ '% + 1px);' if event.blend_right else 'width: ' ~ event.width ~ '%;' }}">
                     </div>
                     {% endfor %}
                     {% endif %}
