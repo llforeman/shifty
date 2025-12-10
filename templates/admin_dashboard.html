@@ -1,128 +1,258 @@
 {% extends "base.html" %}
 
-{% block title %}Panel de Administración - Shifty{% endblock %}
+{% block title %}Notificaciones - Shifty{% endblock %}
 
 {% block content %}
-<div class="row mb-4">
-    <div class="col-md-12">
-        <h2 class="mb-3">Panel de Administración de Servicio</h2>
-        <div class="card p-3 shadow-sm">
-            <h5>Estado General</h5>
-            <p><strong>Servicio:</strong> {{ current_user.pediatrician.service.name if current_user.pediatrician else
-                'Desconocido' }}</p>
-        </div>
+<style>
+    .dashboard-header {
+        background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+        color: white;
+        padding: 30px;
+        border-radius: 12px;
+        margin-bottom: 30px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .dashboard-title h2 {
+        margin: 0;
+        font-weight: 700;
+        font-size: 1.8rem;
+    }
+
+    .dashboard-info {
+        background: rgba(255, 255, 255, 0.1);
+        padding: 10px 20px;
+        border-radius: 8px;
+        backdrop-filter: blur(5px);
+    }
+
+    .card-modern {
+        border: none;
+        border-radius: 12px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+        transition: transform 0.2s;
+        background: white;
+        height: 100%;
+        overflow: hidden;
+    }
+
+    .card-modern:hover {
+        transform: translateY(-2px);
+    }
+
+    .card-modern-header {
+        padding: 20px;
+        border-bottom: 1px solid #f0f0f0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .card-modern-body {
+        padding: 20px;
+    }
+
+    .status-badge {
+        padding: 5px 12px;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 600;
+    }
+
+    .badge-pending {
+        background: #fff3cd;
+        color: #856404;
+    }
+
+    .badge-alert {
+        background: #f8d7da;
+        color: #721c24;
+    }
+
+    .badge-info {
+        background: #cce5ff;
+        color: #004085;
+    }
+
+    .list-item-modern {
+        border: 1px solid #eee;
+        border-radius: 8px;
+        padding: 15px;
+        margin-bottom: 10px;
+        background: #fcfcfc;
+    }
+
+    .btn-action {
+        border: none;
+        padding: 8px 16px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-weight: 600;
+        font-size: 0.9rem;
+        transition: background 0.2s;
+    }
+
+    .btn-approve {
+        background: #d4edda;
+        color: #155724;
+    }
+
+    .btn-approve:hover {
+        background: #c3e6cb;
+    }
+
+    .btn-reject {
+        background: #f8d7da;
+        color: #721c24;
+    }
+
+    .btn-reject:hover {
+        background: #f5c6cb;
+    }
+
+    .section-icon {
+        margin-right: 10px;
+        font-size: 1.2rem;
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 40px;
+        color: #999;
+    }
+</style>
+
+<div class="dashboard-header">
+    <div class="dashboard-title">
+        <h2>Panel de Notificaciones</h2>
+        <p style="margin: 5px 0 0; opacity: 0.9;">Gestión de alertas y cambios</p>
+    </div>
+    <div class="dashboard-info">
+        <strong>Servicio:</strong> {{ current_user.pediatrician.service.name if current_user.pediatrician else 'N/A' }}
     </div>
 </div>
 
 <div class="row">
-    <!-- Columna Izquierda: Acciones Pendientes -->
-    <div class="col-md-6">
-
-        <!-- PENDING SWAPS -->
-        <div class="card mb-4 shadow-sm">
-            <div class="card-header bg-warning text-dark">
-                <h5 class="mb-0">Intercambios Pendientes</h5>
+    <!-- COLUMN 1: PENDING REQUESTS -->
+    <div class="col-lg-6 mb-4">
+        <div class="card-modern">
+            <div class="card-modern-header">
+                <h5 class="mb-0">
+                    <span class="section-icon">🔄</span>Solicitudes de Cambio
+                </h5>
+                {% if pending_swaps %}<span class="status-badge badge-pending">{{ pending_swaps|length }}
+                    Pendientes</span>{% endif %}
             </div>
-            <div class="card-body">
+            <div class="card-modern-body">
                 {% if pending_swaps %}
-                <ul class="list-group">
-                    {% for swap in pending_swaps %}
-                    <li class="list-group-item">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <strong>{{ swap.requester.username }}</strong> quiere cambiar con <strong>{{
-                                    swap.target_user.username }}</strong>
-                                <br>
-                                <small>
-                                    {{ swap.requester_shift.date.strftime('%d/%m') if swap.requester_shift else '?' }}
-                                    &harr;
-                                    {{ swap.target_shift.date.strftime('%d/%m') if swap.target_shift else '?' }}
-                                </small>
-                            </div>
-                            <div>
-                                <!-- Acciones Admin -->
-                                <button onclick="confirmSwap({{ swap.id }}, 'approve')"
-                                    class="btn btn-sm btn-success">Aprobar</button>
-                                <button onclick="confirmSwap({{ swap.id }}, 'reject')"
-                                    class="btn btn-sm btn-danger">Rechazar</button>
-                            </div>
+                {% for swap in pending_swaps %}
+                <div class="list-item-modern">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <div>
+                            <strong>{{ swap.requester.username }}</strong> ➡ <strong>{{ swap.target_user.username
+                                }}</strong>
                         </div>
-                    </li>
-                    {% endfor %}
-                </ul>
+                        <span class="status-badge badge-pending">Pendiente</span>
+                    </div>
+                    <div class="text-muted small mb-3">
+                        <div>📅 Solicitante: {{ swap.requester_shift.date.strftime('%d/%m/%Y') if swap.requester_shift
+                            else 'N/A' }}</div>
+                        <div>📅 Destinatario: {{ swap.target_shift.date.strftime('%d/%m/%Y') if swap.target_shift else
+                            'N/A' }}</div>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button onclick="confirmSwap({{ swap.id }}, 'approve')" class="btn-action btn-approve">✓
+                            Aprobar</button>
+                        <button onclick="confirmSwap({{ swap.id }}, 'reject')" class="btn-action btn-reject">✕
+                            Rechazar</button>
+                    </div>
+                </div>
+                {% endfor %}
                 {% else %}
-                <p class="text-muted">No hay intercambios pendientes.</p>
+                <div class="empty-state">
+                    <div style="font-size: 2rem; margin-bottom: 10px;">✨</div>
+                    No hay solicitudes pendientes
+                </div>
                 {% endif %}
             </div>
         </div>
-
-        <!-- NOTIFICATIONS LOG -->
-        <div class="card mb-4 shadow-sm">
-            <div class="card-header bg-info text-white">
-                <h5 class="mb-0">Registro de Notificaciones</h5>
-            </div>
-            <div class="card-body" style="max-height: 400px; overflow-y: auto;">
-                {% if notifications %}
-                <ul class="list-group list-group-flush">
-                    {% for notif in notifications %}
-                    <li class="list-group-item">
-                        <small class="text-muted">{{ notif.created_at.strftime('%d/%m %H:%M') }}</small><br>
-                        {{ notif.message }}
-                    </li>
-                    {% endfor %}
-                </ul>
-                {% else %}
-                <p class="text-muted">No hay notificaciones recientes.</p>
-                {% endif %}
-            </div>
-        </div>
-
     </div>
 
-    <!-- Columna Derecha: Alertas de Validación -->
-    <div class="col-md-6">
+    <!-- COLUMN 2: ALERTS & NOTIFICATIONS -->
+    <div class="col-lg-6">
 
-        <!-- INCOMPATIBILITIES -->
-        <div class="card mb-4 shadow-sm border-danger">
-            <div class="card-header bg-danger text-white">
-                <h5 class="mb-0">Incompatibilidades Detectadas (Próx. 30 días)</h5>
+        <!-- ALERTS -->
+        <div class="card-modern mb-4">
+            <div class="card-modern-header">
+                <h5 class="mb-0">
+                    <span class="section-icon">⚠️</span>Alertas del Servicio
+                </h5>
+                {% if alerts.overlaps or alerts.staffing %}
+                <span class="status-badge badge-alert">{{ (alerts.overlaps|length if alerts.overlaps else 0) +
+                    (alerts.staffing|length if alerts.staffing else 0) }} Alertas</span>
+                {% endif %}
             </div>
-            <div class="card-body">
+            <div class="card-modern-body">
+                {% if alerts.overlaps or alerts.staffing %}
                 {% if alerts.overlaps %}
-                <div class="list-group">
-                    {% for overlap in alerts.overlaps %}
-                    <div class="list-group-item list-group-item-danger">
-                        <strong>{{ overlap.user }}</strong> - {{ overlap.date.strftime('%d/%m') }}
-                        <br>
-                        <small>{{ overlap.message }}</small>
+                <h6 class="text-danger mb-3">Incompatibilidades</h6>
+                {% for overlap in alerts.overlaps %}
+                <div class="list-item-modern border-danger" style="background: #fff5f5;">
+                    <div class="d-flex align-items-center mb-1">
+                        <strong class="text-danger">{{ overlap.user }}</strong>
+                        <span class="ms-auto small text-muted">{{ overlap.date.strftime('%d/%m') }}</span>
                     </div>
-                    {% endfor %}
+                    <small>{{ overlap.message }}</small>
                 </div>
+                {% endfor %}
+                {% endif %}
+
+                {% if alerts.staffing %}
+                <h6 class="text-warning mb-3 mt-4">Personal (Min/Max)</h6>
+                {% for alert in alerts.staffing %}
+                <div class="list-item-modern border-warning" style="background: #fffdf5;">
+                    <div class="d-flex align-items-center mb-1">
+                        <strong>{{ alert.type }}</strong>
+                        <span class="ms-auto small text-muted">{{ alert.date.strftime('%d/%m') }}</span>
+                    </div>
+                    <small>{{ alert.message }}</small>
+                </div>
+                {% endfor %}
+                {% endif %}
                 {% else %}
-                <p class="text-success">No se detectaron superposiciones.</p>
+                <div class="empty-state">
+                    <div style="font-size: 2rem; margin-bottom: 10px;">✅</div>
+                    Todo está en orden
+                </div>
                 {% endif %}
             </div>
         </div>
 
-        <!-- STAFFING VIOLATIONS -->
-        <div class="card mb-4 shadow-sm border-warning">
-            <div class="card-header bg-warning text-dark">
-                <h5 class="mb-0">Alertas de Personal (Min/Max)</h5>
+        <!-- MY NOTIFICATIONS -->
+        <div class="card-modern">
+            <div class="card-modern-header">
+                <h5 class="mb-0">
+                    <span class="section-icon">🔔</span>Mis Notificaciones
+                </h5>
             </div>
-            <div class="card-body">
-                {% if alerts.staffing %}
-                <div class="list-group">
-                    {% for alert in alerts.staffing %}
-                    <div
-                        class="list-group-item {{ 'list-group-item-danger' if alert.level == 'error' else 'list-group-item-warning' }}">
-                        <strong>{{ alert.date.strftime('%d/%m') }} - {{ alert.type }}</strong>
-                        <br>
-                        <small>{{ alert.message }}</small>
+            <div class="card-modern-body" style="max-height: 300px; overflow-y: auto;">
+                {% if notifications %}
+                {% for notif in notifications %}
+                <div class="list-item-modern">
+                    <div class="d-flex justify-content-between mb-1">
+                        <span class="badge badge-info" style="font-size: 0.7em;">Info</span>
+                        <small class="text-muted">{{ notif.created_at.strftime('%d/%m %H:%M') }}</small>
                     </div>
-                    {% endfor %}
+                    <p class="mb-0 small">{{ notif.message }}</p>
                 </div>
+                {% endfor %}
                 {% else %}
-                <p class="text-success">Cumplimiento correcto de personal.</p>
+                <div class="empty-state">
+                    No tienes notificaciones recientes
+                </div>
                 {% endif %}
             </div>
         </div>
@@ -132,7 +262,8 @@
 
 <script>
     function confirmSwap(reqId, action) {
-        if (!confirm('¿Estás seguro de ' + action + ' este intercambio?')) return;
+        // Cleaner Alert/Confirm could be implemented, keeping standard for simplicity but styled buttons
+        if (!confirm('¿Estás seguro de ' + (action === 'approve' ? 'APROBAR' : 'RECHAZAR') + ' este intercambio?')) return;
 
         fetch("{{ url_for('admin_confirm_swap') }}", {
             method: 'POST',

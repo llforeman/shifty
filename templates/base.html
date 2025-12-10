@@ -146,10 +146,17 @@
         {% else %}
 
         <!-- COMMON TOP LINKS -->
+        {% if current_user.role == 'manager' %}
+        <a href="{{ url_for('admin_dashboard') }}"
+            class="{% if request.endpoint == 'admin_dashboard' %}active{% endif %}">
+            🔔 Notificaciones
+        </a>
+        {% else %}
         <a href="{{ url_for('notifications_page') }}"
             class="{% if request.endpoint == 'notifications_page' %}active{% endif %}">
             🔔 Notificaciones
         </a>
+        {% endif %}
         <a href="{{ url_for('profile') }}" class="{% if request.endpoint == 'profile' %}active{% endif %}">
             👤 Mi Perfil
         </a>
@@ -180,10 +187,7 @@
             class="{% if request.endpoint == 'manager_config' %}active{% endif %}">
             🛠️ Configurar y Generar
         </a>
-        <a href="{{ url_for('admin_dashboard') }}"
-            class="{% if request.endpoint == 'admin_dashboard' %}active{% endif %}">
-            📊 Panel de Control
-        </a>
+
         <a href="{{ url_for('preferences_view_selection') }}"
             class="{% if request.endpoint == 'preferences_view_selection' %}active{% endif %}">
             ⚙️ Ver Preferencias
