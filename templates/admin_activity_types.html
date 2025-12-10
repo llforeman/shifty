@@ -11,9 +11,14 @@
     <div
         style="background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 30px;">
         <h3>Añadir Nuevo Tipo</h3>
-        <form action="{{ url_for('admin_add_activity_type') }}" method="POST" style="display: flex; gap: 10px;">
+        <form action="{{ url_for('admin_add_activity_type') }}" method="POST"
+            style="display: flex; gap: 10px; flex-wrap: wrap;">
             <input type="text" name="name" placeholder="Ej: Consulta Privada, Gimnasio, Clases..." required
-                style="flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
+                style="flex: 2; min-width: 200px; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
+            <input type="number" name="min_staff" placeholder="Min" min="0"
+                style="width: 80px; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
+            <input type="number" name="max_staff" placeholder="Max" min="0"
+                style="width: 80px; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
             <button type="submit"
                 style="background: #48bb78; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer;">
                 Añadir
@@ -27,15 +32,40 @@
         {% if activity_types %}
         <ul style="list-style: none; padding: 0;">
             {% for type in activity_types %}
-            <li
-                style="border-bottom: 1px solid #eee; padding: 15px 0; display: flex; justify-content: space-between; align-items: center;">
-                <span style="font-size: 1.1em;">{{ type.name }}</span>
-                <form action="{{ url_for('admin_delete_activity_type', id=type.id) }}" method="POST"
+            <li style="border-bottom: 1px solid #eee; padding: 15px 0;">
+                <form action="{{ url_for('admin_update_activity_type', id=type.id) }}" method="POST"
+                    style="display: flex; flex-wrap: wrap; gap: 10px; align-items: center;">
+
+                    <input type="text" name="name" value="{{ type.name }}" required
+                        style="flex: 2; min-width: 150px; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+
+                    <div style="display: flex; gap: 5px; align-items: center;">
+                        <label style="font-size: 0.9em; color: #666;">Min:</label>
+                        <input type="number" name="min_staff" value="{{ type.min_staff or '' }}" min="0" placeholder="-"
+                            style="width: 60px; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                    </div>
+
+                    <div style="display: flex; gap: 5px; align-items: center;">
+                        <label style="font-size: 0.9em; color: #666;">Max:</label>
+                        <input type="number" name="max_staff" value="{{ type.max_staff or '' }}" min="0" placeholder="-"
+                            style="width: 60px; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                    </div>
+
+                    <div style="display: flex; gap: 5px;">
+                        <button type="submit"
+                            style="background: #3498db; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer;">
+                            Guardar
+                        </button>
+                        <button type="submit" form="delete-form-{{ type.id }}"
+                            style="background: #ef4444; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer;">
+                            Eliminar
+                        </button>
+                    </div>
+                </form>
+
+                <form id="delete-form-{{ type.id }}" action="{{ url_for('admin_delete_activity_type', id=type.id) }}"
+                    method="POST" style="display: none;"
                     onsubmit="return confirm('¿Seguro? Esto podría afectar a actividades existentes (se mantendrán pero perderán el tipo).');">
-                    <button type="submit"
-                        style="color: #ef4444; background: none; border: 1px solid #ef4444; padding: 5px 10px; border-radius: 4px; cursor: pointer;">
-                        Eliminar
-                    </button>
                 </form>
             </li>
             {% endfor %}

@@ -5,6 +5,7 @@ from flask_login import LoginManager, UserMixin, login_user, logout_user, login_
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import date, datetime, timedelta
 import calendar
+from validation import check_overlap, get_validation_alerts
 import os
 from dotenv import load_dotenv
 from functools import wraps
@@ -275,6 +276,8 @@ class ActivityType(db.Model):
     # name is unique PER SERVICE
     name = db.Column(db.String(100), nullable=False)
     service_id = db.Column(db.Integer, db.ForeignKey('service.id'), nullable=True) # Nullable for migration
+    min_staff = db.Column(db.Integer, nullable=True)
+    max_staff = db.Column(db.Integer, nullable=True)
     
     __table_args__ = (db.UniqueConstraint('name', 'service_id', name='uq_activity_name_service'),)
     
@@ -684,6 +687,10 @@ def add_activity():
             if activity.user_id != current_user.id:
                 abort(403)
             
+            # Validation: Overlap (Exclude self)
+            if check_overlap(current_user.id, start_time, end_time, exclude_activity_id=activity.id):
+                 flash("Warning: Conflict detected! You have another activity at this time.", "warning")
+
             activity.activity_type_id = activity_type_id
             activity.start_time = start_time
             activity.end_time = end_time
@@ -698,6 +705,10 @@ def add_activity():
             # Create new
             recurrence_day = start_time.weekday() if recurrence_type == 'weekly' else None
             
+            # Validation: Overlap
+            if check_overlap(current_user.id, start_time, end_time):
+                 flash("Warning: Conflict detected! You have another activity at this time.", "warning")
+
             activity = Activity(
                 user_id=current_user.id,
                 activity_type_id=activity_type_id,
@@ -711,7 +722,7 @@ def add_activity():
         db.session.commit()
     except Exception as e:
         print(f"Error saving activity: {e}")
-        # In production, flash error
+        flash(f"Error saving activity: {e}", "error")
         
     return redirect(url_for('activities_page'))
 
@@ -1397,7 +1408,10 @@ def manager_config():
     # Convert to dictionary for easier access in template
     config_dict = {item.key: item.value for item in config_items}
     
-    return render_template('manager_config.html', config=config_dict)
+    # Get Validation Alerts (Today/Tomorrow)
+    alerts = get_validation_alerts(g.current_service.id)
+    
+    return render_template('manager_config.html', config=config_dict, alerts=alerts)
     
 @app.route('/admin/create_user', methods=['GET', 'POST'])
 @login_required
@@ -2003,12 +2017,69 @@ def admin_activity_types_page():
 @role_required('manager')
 def admin_add_activity_type():
     name = request.form.get('name')
+    min_staff = request.form.get('min_staff', type=int)
+    max_staff = request.form.get('max_staff', type=int)
+    
     if name:
         # Check uniqueness in THIS service
         if not ActivityType.query.filter_by(name=name, service_id=g.current_service.id).first():
-            db.session.add(ActivityType(name=name, service_id=g.current_service.id))
+            new_type = ActivityType(
+                name=name, 
+                service_id=g.current_service.id,
+                min_staff=min_staff,
+                max_staff=max_staff
+            )
+            db.session.add(new_type)
             db.session.commit()
     return redirect(url_for('admin_activity_types_page'))
+
+@app.route('/admin/activity_types/update/<int:id>', methods=['POST'])
+@login_required
+@role_required('manager')
+def admin_update_activity_type(id):
+    act_type = ActivityType.query.get_or_404(id)
+    # Security check: belong to service
+    if act_type.service_id != g.current_service.id:
+        flash("Unauthorized access to this activity type.", "error")
+        return redirect(url_for('admin_activity_types_page'))
+        
+    act_type.name = request.form.get('name')
+    act_type.min_staff = request.form.get('min_staff', type=int)
+    act_type.max_staff = request.form.get('max_staff', type=int)
+    
+    db.session.commit()
+    flash("Activity Type updated.", "success")
+    return redirect(url_for('admin_activity_types_page'))
+
+@app.route('/api/debug/add_min_max_columns')
+@login_required
+@role_required('superadmin')
+def debug_add_min_max_columns():
+    from sqlalchemy import text
+    try:
+        conn = db.engine.connect()
+        trans = conn.begin()
+        
+        # Add min_staff
+        try:
+            conn.execute(text("ALTER TABLE activity_type ADD COLUMN min_staff INTEGER"))
+        except Exception as e:
+            if "duplicate" not in str(e).lower():
+                pass # Ignore if exists
+
+        # Add max_staff
+        try:
+            conn.execute(text("ALTER TABLE activity_type ADD COLUMN max_staff INTEGER"))
+        except Exception as e:
+            if "duplicate" not in str(e).lower():
+                pass
+
+        trans.commit()
+        conn.close()
+        return "Migration successful: min_staff and max_staff columns added."
+        
+    except Exception as e:
+        return f"Migration failed: {e}"
 
 @app.route('/admin/activity_types/delete/<int:id>', methods=['POST'])
 @login_required
