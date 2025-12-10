@@ -2271,6 +2271,42 @@ def global_calendar():
                            end_date=end_of_week,
                            events_by_activity=events_by_activity)
 
+@app.route('/debug/validation')
+@login_required
+def debug_validation():
+    from validation import check_overlap, get_validation_alerts
+    from datetime import date, timedelta
+    # Test Overlap
+    # Find any activity for current user
+    acts = Activity.query.filter_by(user_id=current_user.id).all()
+    overlap_results = []
+    for a in acts:
+        # Check against itself (should be False if exclude works, but check_overlap without exclude checks existence)
+        # Check explicit overlap logic
+        is_ov = check_overlap(current_user.id, a.start_time, a.end_time, exclude_activity_id=a.id)
+        overlap_results.append(f"Act {a.id} ({a.start_time} - {a.end_time}): Overlap? {is_ov}")
+
+    # Test Staffing
+    # Check current service alerts for today and next 7 days
+    staffing_results = []
+    today = date.today()
+    for i in range(7):
+        d = today + timedelta(days=i)
+        alerts = get_validation_alerts(g.current_service.id, target_date=d)
+        if alerts:
+            staffing_results.append(f"Date {d}: {alerts}")
+            
+    return f"""
+    <h1>Debug Validation</h1>
+    <h2>User {current_user.id} ({current_user.username})</h2>
+    <h3>Activities Found: {len(acts)}</h3>
+    <pre>{chr(10).join([str(a) for a in acts])}</pre>
+    <h3>Overlap Checks:</h3>
+    <pre>{chr(10).join(overlap_results)}</pre>
+    <h3>Staffing Alerts (Next 7 days):</h3>
+    <pre>{chr(10).join(str(r) for r in staffing_results)}</pre>
+    """
+
 if __name__ == '__main__':
     # Initialize database before running the app
     init_db_and_seed()

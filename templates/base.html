@@ -118,6 +118,12 @@
             color: #721c24;
             border: 1px solid #f5c6cb;
         }
+
+        .alert-warning {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeeba;
+        }
     </style>
     {% block extra_styles %}{% endblock %}
 </head>
@@ -215,7 +221,8 @@
             {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
             {% for category, message in messages %}
-            <div class="alert alert-{{ 'error' if category == 'error' else 'success' }}">
+            <div
+                class="alert alert-{{ 'error' if category == 'error' else ('warning' if category == 'warning' else 'success') }}">
                 {{ message }}
             </div>
             {% endfor %}
