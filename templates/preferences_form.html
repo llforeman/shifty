@@ -284,9 +284,20 @@
         <div class="legend-item"><span class="dot" style="background: #8e44ad;"></span> Mandatory (Obligatorio)</div>
     </div>
     <p style="font-size: 0.9em; color: #666; margin-top: 10px;">
-        * Haz clic en una fecha para seleccionarla arriba.
-        Las fechas con punto de color ya tienen una preferencia guardada.
+        * Haz clic en una fecha para cambiar su estado (Rojo -> Azul -> Verde -> Amarillo -> Violeta -> Borrar).
     </p>
+
+    <!-- Bulk Save Form -->
+    <div id="calendar-save-container"
+        style="display: none; margin-top: 20px; text-align: center; border-top: 1px solid #eee; padding-top: 20px;">
+        <form method="POST">
+            <input type="hidden" name="preference_mode" value="calendar">
+            <input type="hidden" name="calendar_changes" id="calendar_changes_input">
+            <button type="submit" style="background-color: #e67e22; font-size: 1.1em; padding: 12px 30px;">
+                💾 Guardar Cambios del Calendario
+            </button>
+        </form>
+    </div>
 </div>
 
 <style>
@@ -475,15 +486,76 @@
 
             // Click handler
             cell.onclick = () => {
+                // If user wants to just pick date for "Fecha Específica" form, they can still do it? 
+                // The requirement is "interactively click... then add a button... to save".
+                // So we hijack the click for this new feature.
+                // But we should probably also update the form inputs just in case they want to use the old way for that specific date?
+                // Let's do both: Update form input AND cycle internal state for bulk save.
+
+                // 1. Update form inputs (Legacy/Single support)
                 selectMode('specific');
                 document.getElementById('req_date').value = dateStr;
-                // Highlight visual selection
-                document.querySelectorAll('.cal-day').forEach(e => e.style.border = '1px solid #eee');
-                cell.style.border = '2px solid #333';
+
+                // 2. Cycle Preference Logic
+                cyclePreference(dateStr, cell);
             };
 
             grid.appendChild(cell);
         }
+    }
+
+    // Changes tracking: { date: 'Type' } or { date: null } (for deleted)
+    const calendarChanges = {};
+
+    const PREF_TYPES = ['Skip', 'Vacation', 'Prefer', 'Prefer Not', 'Mandatory', null];
+    const PREF_COLORS = {
+        'Skip': '#e74c3c', // Red
+        'Vacation': '#3498db', // Blue
+        'Prefer': '#2ecc71', // Green
+        'Prefer Not': '#f1c40f', // Yellow
+        'Mandatory': '#8e44ad', // Purple
+        null: 'transparent'
+    };
+
+    function cyclePreference(dateStr, cell) {
+        // Determine current type
+        let currentType = null;
+        if (calendarChanges.hasOwnProperty(dateStr)) {
+            currentType = calendarChanges[dateStr];
+        } else if (prefsMap[dateStr]) {
+            currentType = prefsMap[dateStr];
+        }
+
+        // Find next index
+        let idx = PREF_TYPES.indexOf(currentType);
+        if (idx === -1) idx = PREF_TYPES.length - 1; // treat unknown as null?
+
+        let nextIdx = (idx + 1) % PREF_TYPES.length;
+        let nextType = PREF_TYPES[nextIdx];
+
+        // Update tracking
+        calendarChanges[dateStr] = nextType;
+        document.getElementById('calendar_changes_input').value = JSON.stringify(calendarChanges);
+
+        // Update Visuals
+        let dot = cell.querySelector('.cal-event-dot');
+        if (!dot) {
+            dot = document.createElement('div');
+            dot.className = 'cal-event-dot';
+            cell.appendChild(dot);
+        }
+
+        if (nextType) {
+            dot.style.background = PREF_COLORS[nextType];
+            dot.style.display = 'block';
+            cell.title = nextType;
+        } else {
+            dot.style.display = 'none';
+            cell.title = '';
+        }
+
+        // Show the save button container if changes exist
+        document.getElementById('calendar-save-container').style.display = 'block';
     }
 
     function changeMonth(delta) {

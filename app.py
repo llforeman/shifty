@@ -912,8 +912,46 @@ def preferences_page(ped_id):
             db.session.commit()
             return redirect(url_for('preferences_page', ped_id=ped_id))
         
+        # Handle bulk calendar updates
+        elif preference_mode == 'calendar':
+            import json
+            calendar_changes_json = request.form.get('calendar_changes')
+            if calendar_changes_json:
+                try:
+                    changes = json.loads(calendar_changes_json)
+                    for date_str, type_val in changes.items():
+                        change_date = date.fromisoformat(date_str)
+                        
+                        existing_entry = Preference.query.filter_by(
+                            pediatrician_id=ped_id, date=change_date
+                        ).first()
+                        
+                        if type_val: # Update or Create
+                            if existing_entry:
+                                existing_entry.type = type_val
+                                existing_entry.recurring_group = None
+                            else:
+                                new_pref = Preference(
+                                    pediatrician_id=ped_id, 
+                                    date=change_date, 
+                                    type=type_val
+                                )
+                                db.session.add(new_pref)
+                        else: # Delete (type_val is null)
+                            if existing_entry:
+                                db.session.delete(existing_entry)
+                    
+                    db.session.commit()
+                    flash('Cambios del calendario guardados correctamente.', 'success')
+                    return redirect(url_for('preferences_page', ped_id=ped_id))
+                    
+                except Exception as e:
+                    db.session.rollback()
+                    print(f"Error processing calendar changes: {e}")
+                    flash('Error al guardar cambios del calendario.', 'error')
+
         # Handle specific date preference
-        if preference_mode == 'specific':
+        elif preference_mode == 'specific':
             req_date_str = request.form.get('request_date')
             
             if req_date_str and req_type:
