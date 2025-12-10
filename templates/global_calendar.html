@@ -111,7 +111,9 @@
                     {% if activity_data[date_str] %}
                     {% for event in activity_data[date_str] %}
                     <div class="timeline-event" title="{{ event.pediatrician }} ({{ event.time_str }})"
-                        style="left: {{ event.left }}%; width: {{ event.width }}%; top: {{ event.top }}px; background-color: {{ event.color }};">
+                        style="left: {{ event.left }}%; width: {{ event.width }}%; top: {{ event.top }}px; background-color: {{ event.color }};
+                               {{ 'border-top-left-radius: 0; border-bottom-left-radius: 0;' if event.blend_left else '' }}
+                               {{ 'border-top-right-radius: 0; border-bottom-right-radius: 0;' if event.blend_right else '' }}">
                         {{ event.pediatrician }}
                     </div>
                     {% endfor %}

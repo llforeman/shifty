@@ -2281,64 +2281,32 @@ def global_calendar():
         Shift.date <= end_of_week
     ).all()
 
-    # 3. Process Data for Timeline View
-    events_by_activity = {} # Key: ActivityName, Value: { 'YYYY-MM-DD': [events] }
+    # 3. Process Data for Timeline View (Advanced Packing)
+    events_by_activity = {}
     
-    def process_timeline_event(start_dt, end_dt, title, ped_name, color, category, conflict_id=None):
-        # Handle splits across midnight
-        curr_start = start_dt
-        while curr_start < end_dt:
-            # Determine end of this segment (Midnight or actual end)
-            next_midnight = datetime.combine(curr_start.date() + timedelta(days=1), datetime.min.time())
-            segment_end = min(end_dt, next_midnight)
-            
-            # Check if this date is within current week view
-            # (Optimization: could skip if out of range, but simpler to filter later or rely on input filtering)
-            
-            d_str = curr_start.strftime('%Y-%m-%d')
-            
-            # Calculate percentages
-            start_hour = curr_start.hour + (curr_start.minute / 60.0)
-            duration_hours = (segment_end - curr_start).total_seconds() / 3600.0
-            
-            left_pct = (start_hour / 24.0) * 100
-            width_pct = (duration_hours / 24.0) * 100
-            
-            # Add to dict
-            if category not in events_by_activity: events_by_activity[category] = {}
-            if d_str not in events_by_activity[category]: events_by_activity[category][d_str] = []
-            
-            events_by_activity[category][d_str].append({
-                'pediatrician': ped_name,
-                'time_str': f"{curr_start.strftime('%H:%M')} - {segment_end.strftime('%H:%M')}",
-                'color': color,
-                'left': left_pct,
-                'width': width_pct,
-                'start_val': start_hour,
-                'end_val': start_hour + duration_hours,
-                'is_conflict': (conflict_id is not None)
-            })
-            
-            # Prepare for next day
-            curr_start = next_midnight
-
-    # Color Strategy: Default Blue, Red for conflicts
-    def get_color(name):
-        return '#3498db'
-
+    # --- A. Collect Logical Events (Full Duration) ---
+    logical_events = []
+    
     # Process Shifts
     for s in shifts:
         title = s.type if s.type else 'Guardia'
-        
         s_date = s.date
-        if s_date.weekday() >= 5: # Sat/Sun
-             start_dt = datetime.combine(s_date, datetime.min.time()) + timedelta(hours=9) # 9am
-             end_dt = start_dt + timedelta(hours=24) # 9am next day
-        else:
-             start_dt = datetime.combine(s_date, datetime.min.time()) + timedelta(hours=17) # 5pm
-             end_dt = start_dt + timedelta(hours=15) # 8am next day
+        if s_date.weekday() >= 5: # Sat/Sun (9am - 9am next day)
+             start_dt = datetime.combine(s_date, datetime.min.time()) + timedelta(hours=9)
+             end_dt = start_dt + timedelta(hours=24)
+        else: # Weekday (5pm - 8am next day)
+             start_dt = datetime.combine(s_date, datetime.min.time()) + timedelta(hours=17)
+             end_dt = start_dt + timedelta(hours=15)
              
-        process_timeline_event(start_dt, end_dt, title, s.pediatrician.name, '#3498db', title)
+        logical_events.append({
+            'start_dt': start_dt,
+            'end_dt': end_dt,
+            'title': title, # Use title for Category grouping? Yes
+            'ped_name': s.pediatrician.name,
+            'color': '#3498db',
+            'category': title,
+            'conflict_id': None
+        })
 
     # Process Activities
     for a in activities:
@@ -2346,36 +2314,92 @@ def global_calendar():
         p_name = a.user.pediatrician.name if a.user.pediatrician else a.user.username
         
         # Determine Color
-        color = '#3498db' # Blue
+        color = '#3498db'
         is_conflict = False
         if a.id in conflict_ids:
-            color = '#e74c3c' # RED for overlap
+            color = '#e74c3c'
             is_conflict = True
         elif a.activity_type_id and (a.start_time.date(), a.activity_type_id) in violation_keys:
-             color = '#e74c3c' # RED for staffing violation
+             color = '#e74c3c'
              is_conflict = True
+             
+        logical_events.append({
+            'start_dt': a.start_time,
+            'end_dt': a.end_time,
+            'title': a_type_name,
+            'ped_name': p_name,
+            'color': color,
+            'category': a_type_name,
+            'conflict_id': a.id if is_conflict else None
+        })
+
+    # --- B. Week-Based Packing (Assign Rows) ---
+    # Group by category
+    events_by_category = {}
+    for e in logical_events:
+        cat = e['category']
+        if cat not in events_by_category: events_by_category[cat] = []
+        events_by_category[cat].append(e)
         
-        process_timeline_event(a.start_time, a.end_time, a_type_name, p_name, color, a_type_name, conflict_id=a.id if is_conflict else None)
+    for cat, evts in events_by_category.items():
+        # Sort by start time
+        evts.sort(key=lambda x: x['start_dt'])
+        rows = [] # stores end_dt of last event in row
+        for e in evts:
+            assigned_row = -1
+            for i, r_end in enumerate(rows):
+                if e['start_dt'] >= r_end:
+                    assigned_row = i
+                    rows[i] = e['end_dt']
+                    break
+            if assigned_row == -1:
+                assigned_row = len(rows)
+                rows.append(e['end_dt'])
+            e['row_index'] = assigned_row
+
+    # --- C. Split & Project to View ---
+    for e in logical_events:
+        curr_start = e['start_dt']
+        end_dt = e['end_dt']
         
-    # 4. Pack Events (Vertical Stacking)
-    # Assign 'top' based on overlaps
-    for cat, dates in events_by_activity.items():
-        for d_str, evts in dates.items():
-            evts.sort(key=lambda x: x['start_val'])
-            rows = [] # stores end_val of last event in row
-            for evt in evts:
-                row_idx = -1
-                for i, r_end in enumerate(rows):
-                    if evt['start_val'] >= r_end:
-                        row_idx = i
-                        rows[i] = evt['end_val']
-                        break
-                if row_idx == -1:
-                    row_idx = len(rows)
-                    rows.append(evt['end_val'])
-                evt['top'] = row_idx * 25 # 25px per row
-                evt['row'] = row_idx
-                
+        # Track if this event spans multiple segments for blending
+        # Actually blending flags depend on whether THIS segment is start or end of total
+        total_duration = (end_dt - e['start_dt']).total_seconds()
+        
+        while curr_start < end_dt:
+            next_midnight = datetime.combine(curr_start.date() + timedelta(days=1), datetime.min.time())
+            segment_end = min(end_dt, next_midnight)
+            
+            d_str = curr_start.strftime('%Y-%m-%d')
+            
+            # Start/End/Width logic
+            start_hour = curr_start.hour + (curr_start.minute / 60.0)
+            duration_hours = (segment_end - curr_start).total_seconds() / 3600.0
+            
+            left_pct = (start_hour / 24.0) * 100
+            width_pct = (duration_hours / 24.0) * 100
+            
+            # Continuity Flags
+            is_start_of_event = (curr_start == e['start_dt'])
+            is_end_of_event = (segment_end == e['end_dt'])
+            
+            if e['category'] not in events_by_activity: events_by_activity[e['category']] = {}
+            if d_str not in events_by_activity[e['category']]: events_by_activity[e['category']][d_str] = []
+            
+            events_by_activity[e['category']][d_str].append({
+                'pediatrician': e['ped_name'],
+                'time_str': f"{e['start_dt'].strftime('%H:%M')} - {e['end_dt'].strftime('%H:%M')}", # Full duration string
+                'color': e['color'],
+                'left': left_pct,
+                'width': width_pct,
+                'top': e['row_index'] * 25,
+                'row': e['row_index'],
+                'blend_left': not is_start_of_event, # Remove Left border/radius
+                'blend_right': not is_end_of_event   # Remove Right border/radius
+            })
+            
+            curr_start = next_midnight
+
     # Calculate cell heights
     cell_heights = {}
     for cat, dates in events_by_activity.items():
@@ -2384,15 +2408,12 @@ def global_calendar():
             max_row = 0
             if evts:
                 max_row = max(e['row'] for e in evts)
-            cell_heights[cat][d_str] = (max_row + 1) * 25 + 10 # +10 padding
+            cell_heights[cat][d_str] = (max_row + 1) * 25 + 10
 
-    # Update render_template to pass cell_heights
     return render_template('global_calendar.html', 
                            days=days, 
                            day_names=day_names,
                            week_offset=week_offset,
-                           start_date=start_of_week,
-                           end_date=end_of_week,
                            events_by_activity=events_by_activity,
                            cell_heights=cell_heights)
 
