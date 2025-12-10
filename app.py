@@ -691,6 +691,12 @@ def add_activity():
             if check_overlap(current_user.id, start_time, end_time, exclude_activity_id=activity.id):
                  flash("Warning: Conflict detected! You have another activity at this time.", "warning")
 
+            from validation import check_max_staff_limit
+            # Validation: Max Staff
+            is_limit, limit, curr = check_max_staff_limit(activity_type_id, start_time.date(), current_user.id)
+            if is_limit:
+                 flash(f"Warning: Staff limit exceeded! Max {limit}.", "warning")
+
             activity.activity_type_id = activity_type_id
             activity.start_time = start_time
             activity.end_time = end_time
@@ -708,6 +714,12 @@ def add_activity():
             # Validation: Overlap
             if check_overlap(current_user.id, start_time, end_time):
                  flash("Warning: Conflict detected! You have another activity at this time.", "warning")
+
+            from validation import check_max_staff_limit
+            # Validation: Max Staff
+            is_limit, limit, curr = check_max_staff_limit(activity_type_id, start_time.date(), current_user.id)
+            if is_limit:
+                 flash(f"Warning: Staff limit exceeded! Max {limit}.", "warning")
 
             activity = Activity(
                 user_id=current_user.id,

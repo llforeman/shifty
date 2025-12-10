@@ -69,3 +69,26 @@ def check_overlap(user_id, start_time, end_time, exclude_activity_id=None):
         
     return query.first() is not None
 
+def check_max_staff_limit(activity_type_id, target_date, exclude_user_id):
+    """
+    Checks if adding a user to this activity type on this date would violate max_staff.
+    Counts *other* users. If count >= max_page, returns True (Violation).
+    Returns (is_violated, max_staff, current_count_of_others).
+    """
+    from app import db, ActivityType, Activity
+    
+    at = ActivityType.query.get(activity_type_id)
+    if not at or at.max_staff is None:
+        return False, None, 0
+        
+    # Count *others* already scheduled
+    current_count = db.session.query(Activity.user_id).filter(
+        Activity.activity_type_id == activity_type_id,
+        db.func.date(Activity.start_time) == target_date,
+        Activity.user_id != exclude_user_id
+    ).distinct().count()
+    
+    if current_count >= at.max_staff:
+        return True, at.max_staff, current_count
+        
+    return False, at.max_staff, current_count
