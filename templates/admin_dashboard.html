@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+
+{% block title %}Panel de Administración - Shifty{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-12">
+        <h2 class="mb-3">Panel de Administración de Servicio</h2>
+        <div class="card p-3 shadow-sm">
+            <h5>Estado General</h5>
+            <p><strong>Servicio:</strong> {{ current_user.pediatrician.service.name if current_user.pediatrician else
+                'Desconocido' }}</p>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Columna Izquierda: Acciones Pendientes -->
+    <div class="col-md-6">
+
+        <!-- PENDING SWAPS -->
+        <div class="card mb-4 shadow-sm">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="mb-0">Intercambios Pendientes</h5>
+            </div>
+            <div class="card-body">
+                {% if pending_swaps %}
+                <ul class="list-group">
+                    {% for swap in pending_swaps %}
+                    <li class="list-group-item">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>{{ swap.requester.username }}</strong> quiere cambiar con <strong>{{
+                                    swap.target_user.username }}</strong>
+                                <br>
+                                <small>
+                                    {{ swap.requester_shift.date.strftime('%d/%m') if swap.requester_shift else '?' }}
+                                    &harr;
+                                    {{ swap.target_shift.date.strftime('%d/%m') if swap.target_shift else '?' }}
+                                </small>
+                            </div>
+                            <div>
+                                <!-- Acciones Admin -->
+                                <button onclick="confirmSwap({{ swap.id }}, 'approve')"
+                                    class="btn btn-sm btn-success">Aprobar</button>
+                                <button onclick="confirmSwap({{ swap.id }}, 'reject')"
+                                    class="btn btn-sm btn-danger">Rechazar</button>
+                            </div>
+                        </div>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <p class="text-muted">No hay intercambios pendientes.</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- NOTIFICATIONS LOG -->
+        <div class="card mb-4 shadow-sm">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0">Registro de Notificaciones</h5>
+            </div>
+            <div class="card-body" style="max-height: 400px; overflow-y: auto;">
+                {% if notifications %}
+                <ul class="list-group list-group-flush">
+                    {% for notif in notifications %}
+                    <li class="list-group-item">
+                        <small class="text-muted">{{ notif.created_at.strftime('%d/%m %H:%M') }}</small><br>
+                        {{ notif.message }}
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <p class="text-muted">No hay notificaciones recientes.</p>
+                {% endif %}
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Columna Derecha: Alertas de Validación -->
+    <div class="col-md-6">
+
+        <!-- INCOMPATIBILITIES -->
+        <div class="card mb-4 shadow-sm border-danger">
+            <div class="card-header bg-danger text-white">
+                <h5 class="mb-0">Incompatibilidades Detectadas (Próx. 30 días)</h5>
+            </div>
+            <div class="card-body">
+                {% if alerts.overlaps %}
+                <div class="list-group">
+                    {% for overlap in alerts.overlaps %}
+                    <div class="list-group-item list-group-item-danger">
+                        <strong>{{ overlap.user }}</strong> - {{ overlap.date.strftime('%d/%m') }}
+                        <br>
+                        <small>{{ overlap.message }}</small>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-success">No se detectaron superposiciones.</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- STAFFING VIOLATIONS -->
+        <div class="card mb-4 shadow-sm border-warning">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="mb-0">Alertas de Personal (Min/Max)</h5>
+            </div>
+            <div class="card-body">
+                {% if alerts.staffing %}
+                <div class="list-group">
+                    {% for alert in alerts.staffing %}
+                    <div
+                        class="list-group-item {{ 'list-group-item-danger' if alert.level == 'error' else 'list-group-item-warning' }}">
+                        <strong>{{ alert.date.strftime('%d/%m') }} - {{ alert.type }}</strong>
+                        <br>
+                        <small>{{ alert.message }}</small>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <p class="text-success">Cumplimiento correcto de personal.</p>
+                {% endif %}
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<script>
+    function confirmSwap(reqId, action) {
+        if (!confirm('¿Estás seguro de ' + action + ' este intercambio?')) return;
+
+        fetch("{{ url_for('admin_confirm_swap') }}", {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ request_id: reqId, action: action })
+        })
+            .then(r => r.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    location.reload();
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            });
+    }
+</script>
+{% endblock %}

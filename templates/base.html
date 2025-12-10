@@ -180,9 +180,9 @@
             class="{% if request.endpoint == 'manager_config' %}active{% endif %}">
             🛠️ Configurar y Generar
         </a>
-        <a href="{{ url_for('admin_swaps_page') }}"
-            class="{% if request.endpoint == 'admin_swaps_page' %}active{% endif %}">
-            🔄 Gestionar Cambios
+        <a href="{{ url_for('admin_dashboard') }}"
+            class="{% if request.endpoint == 'admin_dashboard' %}active{% endif %}">
+            📊 Panel de Control
         </a>
         <a href="{{ url_for('preferences_view_selection') }}"
             class="{% if request.endpoint == 'preferences_view_selection' %}active{% endif %}">

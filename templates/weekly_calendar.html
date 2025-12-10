@@ -1,5 +1,8 @@
 {% extends "base.html" %}
 
+{% extends "base.html" %}
+
+
 {% block title %}Agenda Semanal - Shifty{% endblock %}
 
 {% block extra_styles %}
@@ -195,7 +198,10 @@
                     {% set left = event.left|default(0) %}
 
                     <!-- Event Card -->
-                    <div class="event-card" {% if event.type=='activity' %} onclick="openEditActivityModal({
+                    <div class="event-card" data-id="{{ event.id }}" {% if current_user.pediatrician_id and
+                        (current_user.pediatrician.name==event.ped_name or current_user.role=='manager' ) and
+                        event.type=='activity' %} draggable="true" style="cursor: grab;" {% endif %} {% if
+                        event.type=='activity' %} onclick="openEditActivityModal({
                             id: '{{ event.id }}',
                             typeId: '{{ event.activity_type_id }}',
                             start: '{{ event.start_iso }}',
@@ -405,6 +411,50 @@
         if (e.target === this) {
             closeAddActivityModal();
         }
+    });
+    // Drag & Drop for Activities
+    document.addEventListener('DOMContentLoaded', function () {
+        const cards = document.querySelectorAll('.event-card[draggable="true"]');
+        cards.forEach(card => {
+            card.addEventListener('dragstart', function (e) {
+                e.dataTransfer.setData('activityId', this.dataset.id);
+                this.style.opacity = '0.5';
+            });
+            card.addEventListener('dragend', function (e) {
+                this.style.opacity = '1';
+            });
+        });
+
+        const allCards = document.querySelectorAll('.event-card');
+        allCards.forEach(target => {
+            target.addEventListener('dragover', function (e) {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+            });
+
+            target.addEventListener('drop', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+
+                const sourceId = e.dataTransfer.getData('activityId');
+                const targetId = this.dataset.id;
+
+                if (!sourceId || !targetId || sourceId === targetId) return;
+
+                if (confirm("¿Solicitar intercambio de esta actividad?")) {
+                    fetch("{{ url_for('request_activity_swap') }}", {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ source_id: sourceId, target_id: targetId })
+                    })
+                        .then(r => r.json())
+                        .then(data => {
+                            if (data.status === 'success') alert('Solicitud enviada.');
+                            else alert('Error: ' + data.message);
+                        });
+                }
+            });
+        });
     });
 </script>
 {% endblock %}

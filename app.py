@@ -233,6 +233,26 @@ class ShiftSwapRequest(db.Model):
     def __repr__(self):
         return f"<ShiftSwapRequest {self.id} Status: {self.status}>"
 
+class ActivitySwapRequest(db.Model):
+    __tablename__ = 'activity_swap_request'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    requester_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    requester_activity_id = db.Column(db.Integer, db.ForeignKey('activity.id'), nullable=False)
+    target_user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    target_activity_id = db.Column(db.Integer, db.ForeignKey('activity.id'), nullable=False)
+    status = db.Column(db.String(20), default='pending_peer') # pending_peer, pending_admin, approved, rejected
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # Relationships
+    requester = db.relationship('User', foreign_keys=[requester_id], backref='sent_activity_swaps')
+    target_user = db.relationship('User', foreign_keys=[target_user_id], backref='received_activity_swaps')
+    requester_activity = db.relationship('Activity', foreign_keys=[requester_activity_id])
+    target_activity = db.relationship('Activity', foreign_keys=[target_activity_id])
+
+    def __repr__(self):
+        return f"<ActivitySwapRequest {self.id} Status: {self.status}>"
+
 class Notification(db.Model):
     __tablename__ = 'notification'
     
@@ -1618,42 +1638,82 @@ def debug_shifts():
 @app.route('/publish_schedule/<int:year>/<int:month>', methods=['POST'])
 @login_required
 @role_required('manager')
+@app.route('/publish_schedule/<int:year>/<int:month>', methods=['POST'])
+@login_required
+@role_required('manager')
 def publish_schedule(year, month):
     try:
         start_date = date(year, month, 1)
         _, last_day = calendar.monthrange(year, month)
         end_date = date(year, month, last_day)
 
-        # 1. Clear existing live shifts for this range for THIS service
-        # We find shifts belonging to peds in this service
-        Shift.query.filter(
-            Shift.date >= start_date, 
-            Shift.date <= end_date,
-            Shift.pediatrician.has(service_id=g.current_service.id)
-        ).delete(synchronize_session=False)
-        
-        # 2. Get draft shifts for THIS service
+        # 1. Get draft shifts for THIS service
         drafts = DraftShift.query.join(Pediatrician).filter(
             DraftShift.date >= start_date, 
             DraftShift.date <= end_date,
             Pediatrician.service_id == g.current_service.id
         ).all()
         
-        # 3. Copy to Shift table
-        new_shifts = []
+        count_created = 0
+        
+        # 2. Convert Drafts to Activities
         for d in drafts:
-            new_shifts.append(Shift(
-                pediatrician_id=d.pediatrician_id, 
-                date=d.date,
-                type=d.type
-            ))
+            # A. Find User
+            # We need a User to assign the Activity.
+            ped_user = User.query.filter_by(pediatrician_id=d.pediatrician_id).first()
+            if not ped_user:
+                print(f"[Publish] Skipping draft for Ped {d.pediatrician_id}: No linked User.")
+                continue
+                
+            # B. Find/Create ActivityType
+            type_name = d.type if d.type else 'Guardia'
+            act_type = ActivityType.query.filter_by(name=type_name, service_id=g.current_service.id).first()
+            if not act_type:
+                # Create default type if missing
+                act_type = ActivityType(name=type_name, service_id=g.current_service.id)
+                db.session.add(act_type)
+                db.session.flush() # Get ID without full commit
             
-        db.session.add_all(new_shifts)
+            # C. Calculate Times (Standard Logic)
+            s_date = d.date
+            if s_date.weekday() >= 5: # Sat/Sun (9am - 9am next day)
+                 start_dt = datetime.combine(s_date, datetime.min.time()) + timedelta(hours=9)
+                 end_dt = start_dt + timedelta(hours=24)
+            else: # Weekday (5pm - 8am next day)
+                 start_dt = datetime.combine(s_date, datetime.min.time()) + timedelta(hours=17)
+                 end_dt = start_dt + timedelta(hours=15)
+            
+            # D. Check Existence (Avoid Duplicates)
+            exists = Activity.query.filter_by(
+                user_id=ped_user.id,
+                activity_type_id=act_type.id,
+                start_time=start_dt
+            ).first()
+            
+            if not exists:
+                new_act = Activity(
+                    user_id=ped_user.id,
+                    activity_type_id=act_type.id,
+                    start_time=start_dt,
+                    end_time=end_dt,
+                    name=None # Deprecated column
+                )
+                db.session.add(new_act)
+                count_created += 1
+            
+        # 3. Create Shifts (Legacy/Shadow) - OPTIONAL
+        # User requested "move to activity category". 
+        # NOT creating Shift records prevents duplication in global_calendar if it reads both.
+        # So we skip creating Shift records.
+            
         db.session.commit()
         
+        flash(f"Horario publicado: {count_created} actividades creadas.", "success")
         return redirect(url_for('calendar_view', year=year, month=month))
+        
     except Exception as e:
         db.session.rollback()
+        print(f"Error publishing: {e}")
         return f"Error publishing schedule: {str(e)}", 500
 
 @app.route('/calendar')
@@ -1997,12 +2057,80 @@ def respond_swap():
         db.session.rollback()
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
+@app.route('/admin/dashboard')
+@login_required
+@role_required('manager')
+def admin_dashboard():
+    # 1. Fetch Pending Swaps (Shifts)
+    pending_swaps = ShiftSwapRequest.query.filter_by(status='pending_admin').all()
+    
+    # 2. Fetch Notifications
+    # Showing notifications sent to this Admin user
+    notifications = Notification.query.filter_by(user_id=current_user.id).order_by(Notification.created_at.desc()).limit(50).all()
+    
+    # 3. Validation Alerts (Next 30 days)
+    from validation import get_service_alerts
+    start_date = date.today()
+    end_date = start_date + timedelta(days=30)
+    alerts = get_service_alerts(g.current_service.id, start_date, end_date)
+    
+    return render_template('admin_dashboard.html', 
+                           pending_swaps=pending_swaps,
+                           notifications=notifications,
+                           alerts=alerts)
+
+@app.route('/api/request_activity_swap', methods=['POST'])
+@login_required
+def request_activity_swap():
+    data = request.json
+    source_id = data.get('source_id')
+    target_id = data.get('target_id')
+    
+    if not source_id or not target_id:
+        return jsonify({'status': 'error', 'message': 'Missing activity IDs'}), 400
+
+    try:
+        source_act = db.session.get(Activity, source_id)
+        target_act = db.session.get(Activity, target_id)
+        
+        if not source_act or not target_act:
+             return jsonify({'status': 'error', 'message': 'Activity not found'}), 404
+             
+        if current_user.id != source_act.user_id:
+             return jsonify({'status': 'error', 'message': 'You can only swap your own activities'}), 403
+             
+        target_user = target_act.user
+        
+        swap_req = ActivitySwapRequest(
+            requester_id=current_user.id,
+            requester_activity_id=source_act.id,
+            target_user_id=target_user.id,
+            target_activity_id=target_act.id,
+            status='pending_peer' 
+        )
+        db.session.add(swap_req)
+        
+        msg = f"User {current_user.username} wants to swap activity on {source_act.start_time.strftime('%d/%m')} with yours."
+        notif = Notification(
+            user_id=target_user.id,
+            message=msg,
+            link=url_for('notifications_page')
+        )
+        db.session.add(notif)
+        
+        db.session.commit()
+        return jsonify({'status': 'success', 'message': 'Swap request sent!'})
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error in request_activity_swap: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
 @app.route('/admin/swaps')
 @login_required
 @role_required('manager')
 def admin_swaps_page():
-    pending_swaps = ShiftSwapRequest.query.filter_by(status='pending_admin').all()
-    return render_template('admin_swaps.html', pending_swaps=pending_swaps)
+    return redirect(url_for('admin_dashboard'))
 
 @app.route('/api/admin_confirm_swap', methods=['POST'])
 @login_required
