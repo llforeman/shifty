@@ -2281,61 +2281,120 @@ def global_calendar():
         Shift.date <= end_of_week
     ).all()
 
-    # 3. Process Data for Views
+    # 3. Process Data for Timeline View
     events_by_activity = {} # Key: ActivityName, Value: { 'YYYY-MM-DD': [events] }
     
-    # Helpers
-    def add_event(date_obj, title, ped_name, color, time_str, category):
-        d_str = date_obj.strftime('%Y-%m-%d')
-        
-        # View 2 (Activity Matrix)
-        if category not in events_by_activity: events_by_activity[category] = {}
-        if d_str not in events_by_activity[category]: events_by_activity[category][d_str] = []
-        events_by_activity[category][d_str].append({
-            'pediatrician': ped_name,
-            'time_str': time_str,
-            'color': color
-        })
+    def process_timeline_event(start_dt, end_dt, title, ped_name, color, category, conflict_id=None):
+        # Handle splits across midnight
+        curr_start = start_dt
+        while curr_start < end_dt:
+            # Determine end of this segment (Midnight or actual end)
+            next_midnight = datetime.combine(curr_start.date() + timedelta(days=1), datetime.min.time())
+            segment_end = min(end_dt, next_midnight)
+            
+            # Check if this date is within current week view
+            # (Optimization: could skip if out of range, but simpler to filter later or rely on input filtering)
+            
+            d_str = curr_start.strftime('%Y-%m-%d')
+            
+            # Calculate percentages
+            start_hour = curr_start.hour + (curr_start.minute / 60.0)
+            duration_hours = (segment_end - curr_start).total_seconds() / 3600.0
+            
+            left_pct = (start_hour / 24.0) * 100
+            width_pct = (duration_hours / 24.0) * 100
+            
+            # Add to dict
+            if category not in events_by_activity: events_by_activity[category] = {}
+            if d_str not in events_by_activity[category]: events_by_activity[category][d_str] = []
+            
+            events_by_activity[category][d_str].append({
+                'pediatrician': ped_name,
+                'time_str': f"{curr_start.strftime('%H:%M')} - {segment_end.strftime('%H:%M')}",
+                'color': color,
+                'left': left_pct,
+                'width': width_pct,
+                'start_val': start_hour,
+                'end_val': start_hour + duration_hours,
+                'is_conflict': (conflict_id is not None)
+            })
+            
+            # Prepare for next day
+            curr_start = next_midnight
 
     # Color Strategy: Default Blue, Red for conflicts
     def get_color(name):
-        return '#3498db' # Blue for all normal activities
-
+        return '#3498db'
 
     # Process Shifts
     for s in shifts:
-        # Assuming Shift is a "Guardia" typically
         title = s.type if s.type else 'Guardia'
-        add_event(s.date, title, s.pediatrician.name, get_color(title), '24h', title)
+        
+        s_date = s.date
+        if s_date.weekday() >= 5: # Sat/Sun
+             start_dt = datetime.combine(s_date, datetime.min.time()) + timedelta(hours=9) # 9am
+             end_dt = start_dt + timedelta(hours=24) # 9am next day
+        else:
+             start_dt = datetime.combine(s_date, datetime.min.time()) + timedelta(hours=17) # 5pm
+             end_dt = start_dt + timedelta(hours=15) # 8am next day
+             
+        process_timeline_event(start_dt, end_dt, title, s.pediatrician.name, '#3498db', title)
 
     # Process Activities
-    # Note: Filter out if it's not relevant? 
-    # Just show everything.
     for a in activities:
-        # Resolve type name
         a_type_name = a.activity_type.name if a.activity_type else (a.name or 'Evento')
-        # Format time
-        t_str = f"{a.start_time.strftime('%H:%M')} - {a.end_time.strftime('%H:%M')}"
-        
-        # Check if user has a pediatrician linked (Staff Name)
         p_name = a.user.pediatrician.name if a.user.pediatrician else a.user.username
         
         # Determine Color
-        color = get_color(a_type_name)
+        color = '#3498db' # Blue
+        is_conflict = False
         if a.id in conflict_ids:
             color = '#e74c3c' # RED for overlap
+            is_conflict = True
         elif a.activity_type_id and (a.start_time.date(), a.activity_type_id) in violation_keys:
              color = '#e74c3c' # RED for staffing violation
+             is_conflict = True
         
-        add_event(a.start_time.date(), a_type_name, p_name, color, t_str, a_type_name)
+        process_timeline_event(a.start_time, a.end_time, a_type_name, p_name, color, a_type_name, conflict_id=a.id if is_conflict else None)
+        
+    # 4. Pack Events (Vertical Stacking)
+    # Assign 'top' based on overlaps
+    for cat, dates in events_by_activity.items():
+        for d_str, evts in dates.items():
+            evts.sort(key=lambda x: x['start_val'])
+            rows = [] # stores end_val of last event in row
+            for evt in evts:
+                row_idx = -1
+                for i, r_end in enumerate(rows):
+                    if evt['start_val'] >= r_end:
+                        row_idx = i
+                        rows[i] = evt['end_val']
+                        break
+                if row_idx == -1:
+                    row_idx = len(rows)
+                    rows.append(evt['end_val'])
+                evt['top'] = row_idx * 25 # 25px per row
+                evt['row'] = row_idx
+                
+    # Calculate cell heights
+    cell_heights = {}
+    for cat, dates in events_by_activity.items():
+        cell_heights[cat] = {}
+        for d_str, evts in dates.items():
+            max_row = 0
+            if evts:
+                max_row = max(e['row'] for e in evts)
+            cell_heights[cat][d_str] = (max_row + 1) * 25 + 10 # +10 padding
 
+    # Update render_template to pass cell_heights
     return render_template('global_calendar.html', 
                            days=days, 
                            day_names=day_names,
                            week_offset=week_offset,
                            start_date=start_of_week,
                            end_date=end_of_week,
-                           events_by_activity=events_by_activity)
+                           events_by_activity=events_by_activity,
+                           cell_heights=cell_heights)
 
 @app.route('/debug/validation')
 @login_required
