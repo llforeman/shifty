@@ -1986,6 +1986,21 @@ def admin_delete_activity_type(id):
     return redirect(url_for('admin_activity_types_page'))
     
 
+@app.route('/api/debug/create_superadmin')
+def debug_create_superadmin():
+    if not User.query.filter_by(username='superadmin').first():
+        superadmin = User(username='superadmin', role='superadmin')
+        superadmin.set_password('superadmin123')
+        db.session.add(superadmin)
+        db.session.commit()
+        return "Superadmin created: superadmin / superadmin123"
+    else:
+        # Reset password just in case
+        u = User.query.filter_by(username='superadmin').first()
+        u.set_password('superadmin123')
+        db.session.commit()
+        return "Superadmin exists. Password reset to: superadmin123"
+
 if __name__ == '__main__':
     # Initialize database before running the app
     init_db_and_seed()
