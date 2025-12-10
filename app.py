@@ -2344,17 +2344,44 @@ def global_calendar():
     for cat, evts in events_by_category.items():
         # Sort by start time
         evts.sort(key=lambda x: x['start_dt'])
-        rows = [] # stores end_dt of last event in row
+        
+        # Map: DayString -> { RowIndex -> UserIdentifier }
+        # Ensures that on any given day, a Row matches exactly one User.
+        day_row_map = {}
+        
         for e in evts:
-            assigned_row = -1
-            for i, r_end in enumerate(rows):
-                if e['start_dt'] >= r_end:
-                    assigned_row = i
-                    rows[i] = e['end_dt']
+            # 1. Identify Days Covered
+            covered_days = []
+            curr = e['start_dt']
+            while curr < e['end_dt']:
+                d_str = curr.strftime('%Y-%m-%d')
+                covered_days.append(d_str)
+                # Advance to next midnight
+                curr = datetime.combine(curr.date() + timedelta(days=1), datetime.min.time())
+            
+            # 2. Find First Available Row
+            user_id = e['ped_name']
+            assigned_row = 0
+            while True:
+                conflict = False
+                for d in covered_days:
+                    if d not in day_row_map: day_row_map[d] = {}
+                    
+                    owner = day_row_map[d].get(assigned_row)
+                    # Conflict if row is occupied by SOMEONE ELSE
+                    if owner is not None and owner != user_id:
+                        conflict = True
+                        break
+                
+                if not conflict:
+                    # Reserve this row for this user on all covered days
+                    for d in covered_days:
+                        if d not in day_row_map: day_row_map[d] = {}
+                        day_row_map[d][assigned_row] = user_id
                     break
-            if assigned_row == -1:
-                assigned_row = len(rows)
-                rows.append(e['end_dt'])
+                else:
+                    assigned_row += 1
+            
             e['row_index'] = assigned_row
 
     # --- C. Split & Project to View ---
