@@ -137,45 +137,35 @@
             class="{% if request.endpoint == 'superadmin_dashboard' %}active{% endif %}">
             🎛️ Dashboard
         </a>
-        <a href="{{ url_for('logout') }}" class="logout-btn">Cerrar Sesión</a>
         {% else %}
 
-        {% if current_user.role != 'superadmin' %}
-        <!-- COMMON TOP LINKS (Order: Notif, Profile, Calendar, Chat) -->
+        <!-- COMMON TOP LINKS -->
         <a href="{{ url_for('notifications_page') }}"
             class="{% if request.endpoint == 'notifications_page' %}active{% endif %}">
             🔔 Notificaciones
         </a>
-
         <a href="{{ url_for('profile') }}" class="{% if request.endpoint == 'profile' %}active{% endif %}">
             👤 Mi Perfil
         </a>
-
         <a href="{{ url_for('activities_page') }}"
             class="{% if request.endpoint == 'activities_page' %}active{% endif %}">
             📆 Calendario
         </a>
-
         <a href="{{ url_for('chat_page') }}" class="{% if request.endpoint == 'chat_page' %}active{% endif %}">
             💬 Chat
         </a>
 
-
         {% if current_user.role == 'manager' %}
-        <!-- ADMIN SPECIFIC TOP LINKS -->
+        <!-- ADMIN SPECIFIC -->
         <a href="{{ url_for('admin_create_user') }}"
             class="{% if request.endpoint == 'admin_create_user' %}active{% endif %}">
             👥 Crear Usuario
         </a>
-
         <a href="{{ url_for('admin_activity_types_page') }}"
             class="{% if request.endpoint == 'admin_activity_types_page' %}active{% endif %}">
             🏷️ Tipos de Actividad
         </a>
-
-        <!-- ADMIN BOTTOM SECTION -->
         <div style="border-top: 1px solid rgba(255,255,255,0.2); margin: 10px 0;"></div>
-
         <a href="{{ url_for('manager_config') }}"
             class="{% if request.endpoint == 'manager_config' %}active{% endif %}">
             🛠️ Configurar y Generar
@@ -188,30 +178,27 @@
             class="{% if request.endpoint == 'preferences_view_selection' %}active{% endif %}">
             ⚙️ Ver Preferencias
         </a>
-        <!-- Adding Calendario de Guardias here for Admin ensuring they can see the result -->
         <a href="{{ url_for('calendar_view') }}" class="{% if request.endpoint == 'calendar_view' %}active{% endif %}">
             📅 Calendario de guardias
         </a>
-
         {% else %}
         <!-- USER BOTTOM SECTION -->
         <div style="border-top: 1px solid rgba(255,255,255,0.2); margin: 10px 0;"></div>
-
         <a href="{{ url_for('calendar_view') }}" class="{% if request.endpoint == 'calendar_view' %}active{% endif %}">
             📅 Calendario de guardias
         </a>
-
         {% if current_user.pediatrician_id %}
         <a href="{{ url_for('preferences_page', ped_id=current_user.pediatrician_id) }}"
             class="{% if request.endpoint == 'preferences_page' %}active{% endif %}">
             ⚙️ Mis Preferencias
         </a>
         {% endif %}
-
         {% endif %}
+
         {% endif %}
 
         <a href="{{ url_for('logout') }}" class="logout-btn">Cerrar Sesión</a>
+
         {% else %}
         <a href="{{ url_for('login') }}" class="{% if request.endpoint == 'login' %}active{% endif %}">
             🔑 Iniciar Sesión
