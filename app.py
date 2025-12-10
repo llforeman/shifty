@@ -1,5 +1,6 @@
 from flask import Flask, render_template, request, redirect, url_for, abort, jsonify, g
 from flask_sqlalchemy import SQLAlchemy
+from flask_migrate import Migrate
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import date, datetime, timedelta
@@ -54,7 +55,7 @@ app.config['SESSION_COOKIE_HTTPONLY'] = True  # Security best practice
 app.config['PERMANENT_SESSION_LIFETIME'] = 86400  # 24 hours
 
 # Initialize extensions
-db = SQLAlchemy(app)
+# db = SQLAlchemy(app) # Already initialized above
 migrate = Migrate(app, db) # Initialize Flask-Migrate
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
