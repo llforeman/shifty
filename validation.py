@@ -24,25 +24,33 @@ def get_service_alerts(service_id, start_date, end_date):
         Activity.end_time <= datetime.combine(end_date, datetime.max.time())
     ).order_by(Activity.user_id, Activity.start_time).all()
 
-    # 2. Check Overlaps (Linear Scan per User)
+    # 2. Check Overlaps (Exhaustive Check per User)
     activities_by_user = defaultdict(list)
     for a in activities:
         activities_by_user[a.user_id].append(a)
 
     for user_id, user_acts in activities_by_user.items():
-        for i in range(len(user_acts) - 1):
-            a1 = user_acts[i]
-            a2 = user_acts[i+1]
-            
-            if a1.end_time > a2.start_time:
-                user_name = a1.user.pediatrician.name if a1.user.pediatrician else a1.user.username
-                msg = f"Incompatibilidad: {user_name} tiene simul.{a1.start_time.strftime('%H:%M')} y {a2.start_time.strftime('%H:%M')}"
-                alerts['overlaps'].append({
-                    'user': user_name,
-                    'date': a1.start_time.date(),
-                    'activities': [a1, a2],
-                    'message': msg
-                })
+        n = len(user_acts)
+        for i in range(n):
+            for j in range(i + 1, n):
+                a1 = user_acts[i]
+                a2 = user_acts[j]
+                
+                # Overlap condition: Start1 < End2 AND Start2 < End1
+                if a1.start_time < a2.end_time and a2.start_time < a1.end_time:
+                     user_name = a1.user.pediatrician.name if a1.user.pediatrician else a1.user.username
+                     # Improve message
+                     type1 = a1.activity_type.name if a1.activity_type else 'Activity'
+                     type2 = a2.activity_type.name if a2.activity_type else 'Activity'
+                     
+                     msg = f"Incompatibilidad: {user_name} - {type1} ({a1.start_time.strftime('%H:%M')}-{a1.end_time.strftime('%H:%M')}) coincide con {type2} ({a2.start_time.strftime('%H:%M')}-{a2.end_time.strftime('%H:%M')})"
+                     
+                     alerts['overlaps'].append({
+                        'user': user_name,
+                        'date': a1.start_time.date(),
+                        'activities': [a1, a2],
+                        'message': msg
+                     })
 
     # 3. Check Staffing Levels (Min/Max)
     act_types = ActivityType.query.filter_by(service_id=service_id).all()
