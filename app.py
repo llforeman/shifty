@@ -1745,23 +1745,41 @@ def publish_schedule(year, month):
         
         count_created = 0
         
+        # PRE-FETCHING TO AVOID N+1 QUERIES
+        # A. Users
+        service_users = User.query.join(Pediatrician).filter(Pediatrician.service_id == g.current_service.id).all()
+        user_map = {u.pediatrician_id: u for u in service_users if u.pediatrician_id}
+        
+        # B. ActivityTypes
+        service_types = ActivityType.query.filter_by(service_id=g.current_service.id).all()
+        type_map = {t.name: t for t in service_types}
+        
+        # C. Existing Activities (Bulk Fetch)
+        # Fetch all activities for this service's users in the date range to avoid N+1 checks
+        existing_acts = Activity.query.filter(
+            Activity.user_id.in_([u.id for u in service_users]),
+            Activity.start_time >= start_date,
+            Activity.start_time <= end_date + timedelta(days=1) 
+        ).all()
+        existing_keys = {(a.user_id, a.activity_type_id, a.start_time) for a in existing_acts}
+
         # 2. Convert Drafts to Activities
         for d in drafts:
             # A. Find User
-            # We need a User to assign the Activity.
-            ped_user = User.query.filter_by(pediatrician_id=d.pediatrician_id).first()
+            ped_user = user_map.get(d.pediatrician_id)
             if not ped_user:
-                print(f"[Publish] Skipping draft for Ped {d.pediatrician_id}: No linked User.")
                 continue
                 
             # B. Find/Create ActivityType
             type_name = d.type if d.type else 'Guardia'
-            act_type = ActivityType.query.filter_by(name=type_name, service_id=g.current_service.id).first()
+            act_type = type_map.get(type_name)
+            
             if not act_type:
-                # Create default type if missing
+                # Create if missing (and update map)
                 act_type = ActivityType(name=type_name, service_id=g.current_service.id)
                 db.session.add(act_type)
-                db.session.flush() # Get ID without full commit
+                db.session.flush() # Get ID
+                type_map[type_name] = act_type
             
             # C. Calculate Times (Standard Logic)
             s_date = d.date
@@ -1772,22 +1790,19 @@ def publish_schedule(year, month):
                  start_dt = datetime.combine(s_date, datetime.min.time()) + timedelta(hours=17)
                  end_dt = start_dt + timedelta(hours=15)
             
-            # D. Check Existence (Avoid Duplicates)
-            exists = Activity.query.filter_by(
-                user_id=ped_user.id,
-                activity_type_id=act_type.id,
-                start_time=start_dt
-            ).first()
-            
-            if not exists:
+            # D. Check Existence (Set Lookup)
+            key = (ped_user.id, act_type.id, start_dt)
+            if key not in existing_keys:
                 new_act = Activity(
                     user_id=ped_user.id,
                     activity_type_id=act_type.id,
                     start_time=start_dt,
                     end_time=end_dt,
-                    name=None # Deprecated column
+                    name=None
                 )
                 db.session.add(new_act)
+                # Add to set to prevent duplicates within the same batch
+                existing_keys.add(key)
                 count_created += 1
             
         # 3. Create Shifts (Legacy/Shadow) - OPTIONAL
