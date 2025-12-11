@@ -1793,14 +1793,17 @@ def publish_schedule(year, month):
         service_types = ActivityType.query.filter_by(service_id=g.current_service.id).all()
         type_map = {t.name: t for t in service_types}
         
-        # C. Existing Activities (Bulk Fetch)
-        # Fetch all activities for this service's users in the date range to avoid N+1 checks
-        existing_acts = Activity.query.filter(
-            Activity.user_id.in_([u.id for u in service_users]),
-            Activity.start_time >= start_date,
-            Activity.start_time <= end_date + timedelta(days=1) 
-        ).all()
-        existing_keys = {(a.user_id, a.activity_type_id, a.start_time) for a in existing_acts}
+        # C. DELETE existing activities for this period (Overwrite)
+        # We delete all activities for these users in this month to replace with the new draft.
+        if service_users:
+            Activity.query.filter(
+                Activity.user_id.in_([u.id for u in service_users]),
+                Activity.start_time >= datetime.combine(start_date, datetime.min.time()),
+                Activity.start_time < datetime.combine(end_date + timedelta(days=1), datetime.min.time())
+            ).delete(synchronize_session=False)
+            
+        # Track new keys to avoid duplicates within the draft itself
+        existing_keys = set()
 
         # 2. Convert Drafts to Activities
         for d in drafts:
