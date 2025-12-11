@@ -1476,10 +1476,7 @@ def manager_config():
     # Convert to dictionary for easier access in template
     config_dict = {item.key: item.value for item in config_items}
     
-    # Get Validation Alerts (Today/Tomorrow)
-    alerts = get_validation_alerts(g.current_service.id)
-    
-    return render_template('manager_config.html', config=config_dict, alerts=alerts)
+    return render_template('manager_config.html', config=config_dict)
     
 @app.route('/admin/create_user', methods=['GET', 'POST'])
 @login_required

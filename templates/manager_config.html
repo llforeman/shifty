@@ -85,21 +85,6 @@
 {% endif %}
 
 <div style="background: #e7f3ff; padding: 15px; border-radius: 6px; margin-bottom: 20px; border: 1px solid #b3d9ff;">
-    {% if alerts %}
-    <div
-        style="margin-bottom: 20px; background: white; padding: 15px; border-radius: 6px; border-left: 5px solid #e74c3c; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-        <h3 style="margin-top: 0; color: #c0392b;">⚠️ Alertas de Validación (Hoy)</h3>
-        <ul style="list-style: none; padding: 0;">
-            {% for alert in alerts %}
-            <li style="padding: 10px; margin-bottom: 5px; border-radius: 4px; 
-                       background: {{ '#fdecea' if alert.level == 'error' else '#fff3cd' }}; 
-                       color: {{ '#c0392b' if alert.level == 'error' else '#856404' }};">
-                <strong>{{ alert.type|upper }}:</strong> {{ alert.message }}
-            </li>
-            {% endfor %}
-        </ul>
-    </div>
-    {% endif %}
 
     <h3 style="margin-top: 0;">Generar Horario</h3>
     <p>Selecciona el rango de meses (mínimo 1, máximo 6 meses)</p>
