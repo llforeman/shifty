@@ -37,6 +37,8 @@
         background: white;
         height: 100%;
         overflow: hidden;
+        margin-bottom: 25px;
+        /* Spacing */
     }
 
     .card-modern:hover {
@@ -49,10 +51,13 @@
         display: flex;
         justify-content: space-between;
         align-items: center;
+        background: #fff;
     }
 
     .card-modern-body {
         padding: 20px;
+        max-height: 400px;
+        overflow-y: auto;
     }
 
     .status-badge {
@@ -70,6 +75,11 @@
     .badge-alert {
         background: #f8d7da;
         color: #721c24;
+    }
+
+    .badge-warning {
+        background: #fff3cd;
+        color: #856404;
     }
 
     .badge-info {
@@ -120,7 +130,7 @@
 
     .empty-state {
         text-align: center;
-        padding: 40px;
+        padding: 30px;
         color: #999;
     }
 </style>
@@ -136,8 +146,10 @@
 </div>
 
 <div class="row">
-    <!-- COLUMN 1: PENDING REQUESTS -->
-    <div class="col-lg-6 mb-4">
+    <!-- LEFT COLUMN -->
+    <div class="col-lg-6">
+
+        <!-- 1. SOLICITUDES DE CAMBIO -->
         <div class="card-modern">
             <div class="card-modern-header">
                 <h5 class="mb-0">
@@ -179,26 +191,18 @@
                 {% endif %}
             </div>
         </div>
-    </div>
 
-    <!-- COLUMN 2: ALERTS & NOTIFICATIONS -->
-    <div class="col-lg-6">
-
-        <!-- ALERTS -->
-        <div class="card-modern mb-4">
+        <!-- 2. DOBLE ACTIVIDAD DEL PERSONAL (Overlaps) -->
+        <div class="card-modern">
             <div class="card-modern-header">
                 <h5 class="mb-0">
-                    <span class="section-icon">⚠️</span>Alertas del Servicio
+                    <span class="section-icon">⚠️</span>Doble Actividad del Personal
                 </h5>
-                {% if alerts.overlaps or alerts.staffing %}
-                <span class="status-badge badge-alert">{{ (alerts.overlaps|length if alerts.overlaps else 0) +
-                    (alerts.staffing|length if alerts.staffing else 0) }} Alertas</span>
-                {% endif %}
+                {% if alerts.overlaps %}<span class="status-badge badge-alert">{{ alerts.overlaps|length }}
+                    Conflictos</span>{% endif %}
             </div>
             <div class="card-modern-body">
-                {% if alerts.overlaps or alerts.staffing %}
                 {% if alerts.overlaps %}
-                <h6 class="text-danger mb-3">Incompatibilidades</h6>
                 {% for overlap in alerts.overlaps %}
                 <div class="list-item-modern border-danger" style="background: #fff5f5;">
                     <div class="d-flex align-items-center mb-1">
@@ -208,12 +212,34 @@
                     <small>{{ overlap.message }}</small>
                 </div>
                 {% endfor %}
+                {% else %}
+                <div class="empty-state">
+                    <div style="font-size: 2rem; margin-bottom: 10px;">✅</div>
+                    Sin conflictos de horario
+                </div>
                 {% endif %}
+            </div>
+        </div>
 
+    </div>
+
+    <!-- RIGHT COLUMN -->
+    <div class="col-lg-6">
+
+        <!-- 3. FALTA/EXCESO DE MÉDICOS (Staffing) -->
+        <div class="card-modern">
+            <div class="card-modern-header">
+                <h5 class="mb-0">
+                    <span class="section-icon">🏥</span>Falta/Exceso de Médicos
+                </h5>
+                {% if alerts.staffing %}<span class="status-badge badge-warning">{{ alerts.staffing|length }}
+                    Alertas</span>{% endif %}
+            </div>
+            <div class="card-modern-body">
                 {% if alerts.staffing %}
-                <h6 class="text-warning mb-3 mt-4">Personal (Min/Max)</h6>
                 {% for alert in alerts.staffing %}
-                <div class="list-item-modern border-warning" style="background: #fffdf5;">
+                <div class="list-item-modern {{ 'border-danger' if alert.level == 'error' else 'border-warning' }}"
+                    style="background: {{ '#fff5f5' if alert.level == 'error' else '#fffdf5' }};">
                     <div class="d-flex align-items-center mb-1">
                         <strong>{{ alert.type }}</strong>
                         <span class="ms-auto small text-muted">{{ alert.date.strftime('%d/%m') }}</span>
@@ -221,24 +247,23 @@
                     <small>{{ alert.message }}</small>
                 </div>
                 {% endfor %}
-                {% endif %}
                 {% else %}
                 <div class="empty-state">
-                    <div style="font-size: 2rem; margin-bottom: 10px;">✅</div>
-                    Todo está en orden
+                    <div style="font-size: 2rem; margin-bottom: 10px;">👌</div>
+                    Cobertura correcta
                 </div>
                 {% endif %}
             </div>
         </div>
 
-        <!-- MY NOTIFICATIONS -->
+        <!-- 4. HISTORIAL DE NOTIFICACIONES -->
         <div class="card-modern">
             <div class="card-modern-header">
                 <h5 class="mb-0">
-                    <span class="section-icon">🔔</span>Mis Notificaciones
+                    <span class="section-icon">📜</span>Historial de Notificaciones
                 </h5>
             </div>
-            <div class="card-modern-body" style="max-height: 300px; overflow-y: auto;">
+            <div class="card-modern-body">
                 {% if notifications %}
                 {% for notif in notifications %}
                 <div class="list-item-modern">
@@ -251,7 +276,7 @@
                 {% endfor %}
                 {% else %}
                 <div class="empty-state">
-                    No tienes notificaciones recientes
+                    Historial vacío
                 </div>
                 {% endif %}
             </div>
@@ -262,7 +287,6 @@
 
 <script>
     function confirmSwap(reqId, action) {
-        // Cleaner Alert/Confirm could be implemented, keeping standard for simplicity but styled buttons
         if (!confirm('¿Estás seguro de ' + (action === 'approve' ? 'APROBAR' : 'RECHAZAR') + ' este intercambio?')) return;
 
         fetch("{{ url_for('admin_confirm_swap') }}", {
