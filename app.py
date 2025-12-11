@@ -251,6 +251,18 @@ class ActivitySwapRequest(db.Model):
     requester_activity = db.relationship('Activity', foreign_keys=[requester_activity_id])
     target_activity = db.relationship('Activity', foreign_keys=[target_activity_id])
 
+class IncompatiblePair(db.Model):
+    __tablename__ = 'incompatible_pair'
+    id = db.Column(db.Integer, primary_key=True)
+    service_id = db.Column(db.Integer, db.ForeignKey('service.id'), nullable=False)
+    pediatrician_1_id = db.Column(db.Integer, db.ForeignKey('pediatrician.id'), nullable=False)
+    pediatrician_2_id = db.Column(db.Integer, db.ForeignKey('pediatrician.id'), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    pediatrician_1 = db.relationship('Pediatrician', foreign_keys=[pediatrician_1_id])
+    pediatrician_2 = db.relationship('Pediatrician', foreign_keys=[pediatrician_2_id])
+
     def __repr__(self):
         return f"<ActivitySwapRequest {self.id} Status: {self.status}>"
 
@@ -1476,6 +1488,15 @@ def manager_config():
     # Convert to dictionary for easier access in template
     config_dict = {item.key: item.value for item in config_items}
     
+    # Fetch Incompatible Pairs
+    incompatible_pairs = IncompatiblePair.query.filter_by(service_id=g.current_service.id).options(
+        db.joinedload(IncompatiblePair.pediatrician_1),
+        db.joinedload(IncompatiblePair.pediatrician_2)
+    ).all()
+    
+    # Fetch Pediatricians for dropdown
+    pediatricians = Pediatrician.query.filter_by(service_id=g.current_service.id).order_by(Pediatrician.name).all()
+    
     # Check for active generation job
     active_job_id = None
     if 'latest_generation_job' in config_dict:
@@ -1489,7 +1510,11 @@ def manager_config():
             # Job ID invalid or expired from Redis
             pass
 
-    return render_template('manager_config.html', config=config_dict, active_job_id=active_job_id)
+    return render_template('manager_config.html', 
+                           config=config_dict, 
+                           active_job_id=active_job_id,
+                           incompatible_pairs=incompatible_pairs,
+                           pediatricians=pediatricians)
     
 @app.route('/admin/create_user', methods=['GET', 'POST'])
 @login_required
@@ -1607,6 +1632,53 @@ def generate_schedule_route():
         })
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/manager/incompatible_pairs/add', methods=['POST'])
+@login_required
+@role_required('manager')
+def add_incompatible_pair():
+    p1_id = request.form.get('p1_id')
+    p2_id = request.form.get('p2_id')
+    
+    if not p1_id or not p2_id or p1_id == p2_id:
+        flash('Seleccione dos pediatras diferentes.', 'error')
+        return redirect(url_for('manager_config'))
+        
+    # Check existence
+    existing = IncompatiblePair.query.filter_by(
+        service_id=g.current_service.id
+    ).filter(
+        ((IncompatiblePair.pediatrician_1_id == p1_id) & (IncompatiblePair.pediatrician_2_id == p2_id)) |
+        ((IncompatiblePair.pediatrician_1_id == p2_id) & (IncompatiblePair.pediatrician_2_id == p1_id))
+    ).first()
+    
+    if existing:
+        flash('Esta restricción ya existe.', 'warning')
+    else:
+        new_pair = IncompatiblePair(
+            service_id=g.current_service.id,
+            pediatrician_1_id=p1_id,
+            pediatrician_2_id=p2_id
+        )
+        db.session.add(new_pair)
+        db.session.commit()
+        flash('Restricción añadida con éxito.', 'success')
+        
+    return redirect(url_for('manager_config'))
+
+@app.route('/manager/incompatible_pairs/delete/<int:pair_id>', methods=['POST'])
+@login_required
+@role_required('manager')
+def delete_incompatible_pair(pair_id):
+    pair = IncompatiblePair.query.get_or_404(pair_id)
+    if pair.service_id != g.current_service.id:
+        abort(403)
+        
+    db.session.delete(pair)
+    db.session.commit()
+    flash('Restricción eliminada.', 'success')
+    return redirect(url_for('manager_config'))
 
 
 @app.route('/job_status/<job_id>')

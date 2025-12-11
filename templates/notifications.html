@@ -6,24 +6,47 @@
 <div class="container-fluid pt-4">
     <h2 class="mb-4" style="font-weight: 700; color: #343a40;">Notificaciones y Alertas</h2>
 
-    <!-- 1. PERSONAL ALERTS (Overlaps) -->
-    {% if personal_overlaps %}
+    <!-- 1a. SHIFT CONFLICTS (High Priority) -->
+    {% if shift_conflicts %}
     <div class="card shadow-sm mb-4 border-danger">
         <div class="card-header bg-danger text-white">
-            <h5 class="mb-0">⚠️ Mis Incompatibilidades de Horario</h5>
+            <h5 class="mb-0">❌ Conflictos de Guardia</h5>
+        </div>
+        <div class="card-body">
+            <div class="alert alert-danger">
+                <i class="fas fa-exclamation-circle"></i> <strong>Atención:</strong> Tienes incompatibilidades graves
+                relacionadas con Guardias (Saliente de guardia o turnos solapados).
+            </div>
+            <ul class="list-group list-group-flush">
+                {% for conflict in shift_conflicts %}
+                <li class="list-group-item d-flex justify-content-between align-items-center list-group-item-danger">
+                    <div>
+                        <strong>{{ conflict.date.strftime('%d/%m/%Y') }}</strong>: {{ conflict.message }}
+                    </div>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- 1b. ACTIVITY OVERLAPS (Medium Priority) -->
+    {% if activity_conflicts %}
+    <div class="card shadow-sm mb-4 border-warning">
+        <div class="card-header bg-warning text-dark">
+            <h5 class="mb-0">⚠️ Solapamientos de Actividad</h5>
         </div>
         <div class="card-body">
             <div class="alert alert-warning">
-                <i class="fas fa-exclamation-triangle"></i> Tienes actividades/guardias solapadas. Por favor, contacta
-                con un administrador o solicita un cambio.
+                <i class="fas fa-exclamation-triangle"></i> Tienes actividades solapadas en tu horario.
             </div>
             <ul class="list-group list-group-flush">
-                {% for overlap in personal_overlaps %}
+                {% for overlap in activity_conflicts %}
                 <li class="list-group-item d-flex justify-content-between align-items-center">
                     <div>
                         <strong>{{ overlap.date.strftime('%d/%m/%Y') }}</strong>: {{ overlap.message }}
                     </div>
-                    <span class="badge bg-danger rounded-pill">Conflicto</span>
+                    <span class="badge bg-warning text-dark rounded-pill">Solapamiento</span>
                 </li>
                 {% endfor %}
             </ul>

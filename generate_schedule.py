@@ -4,7 +4,7 @@ import pandas as pd
 from pulp import LpProblem, LpVariable, LpMinimize, LpStatus, LpBinary, lpSum, value
 import logging
 
-from app import app, db, Shift, DraftShift, Pediatrician, Preference, GlobalConfig
+from app import app, db, Shift, DraftShift, Pediatrician, Preference, GlobalConfig, IncompatiblePair
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -18,7 +18,8 @@ def get_config(service_id):
         'PENALTY_PREFER_NOT_DAY': 10, 'PENALTY_MISS_PREFERRED_DAY': 8,
         'PENALTY_EXCESS_WEEKLY_SHIFTS': 5, 'PENALTY_REPEATED_WEEKDAY': 30,
         'PENALTY_REPEATED_PAIRING': 35, 'PENALTY_MONTHLY_BALANCE': 60,
-        'PENALTY_SHIFT_LIMIT_VIOLATION': 500, 'PENALTY_WEEKEND_LIMIT_VIOLATION': 400
+        'PENALTY_SHIFT_LIMIT_VIOLATION': 500, 'PENALTY_WEEKEND_LIMIT_VIOLATION': 400,
+        'PENALTY_INCOMPATIBLE_PAIR': 1000
     }
     config = defaults.copy()
     try:
@@ -216,7 +217,8 @@ def process_month(year, month, xls, ped_sheets, ped_names, pediatricians):
         'no_previous_day_shifts': {}
     }
 
-def combine_month_with_overlap(year, month, M_overlap, xls, ped_sheets, ped_names, pediatricians):
+def combine_month_with_overlap(year, month, M_overlap, xls, ped_sheets, ped_names, pediatricians, incompatible_pairs=None):
+    if incompatible_pairs is None: incompatible_pairs = []
     cur = process_month(year, month, xls, ped_sheets, ped_names, pediatricians)
     month_days = cur['days']
     overlap_days = []
@@ -305,6 +307,13 @@ def generate_and_save(start_year=2026, start_month=7, end_year=2026, end_month=1
         
         pediatricians = list(ped_names.keys()) # List of DB IDs
 
+        # Fetch Incompatible Pairs
+        incompatible_pairs = []
+        try:
+             incompatible_pairs = IncompatiblePair.query.filter_by(service_id=service_id).all()
+        except:
+             logger.warning("Failed to fetch incompatible pairs")
+
         prev_overlap_mandatory = {p: set() for p in pediatricians}
         cumulative_actual_free = {p: 0.0 for p in pediatricians}
         cumulative_target_free = {p: 0.0 for p in pediatricians}
@@ -330,7 +339,7 @@ def generate_and_save(start_year=2026, start_month=7, end_year=2026, end_month=1
                 if used_M is not None: break
                 
                 for M_try in M_CANDIDATES:
-                    data = combine_month_with_overlap(current_year, current_month, M_try, xls, ped_sheets, ped_names, pediatricians)
+                    data = combine_month_with_overlap(current_year, current_month, M_try, xls, ped_sheets, ped_names, pediatricians, incompatible_pairs)
                     month_days = data['month_days']
                     days_all = data['days_all']
                     mandatory_all = data['mandatory_all']
@@ -418,6 +427,20 @@ def generate_and_save(start_year=2026, start_month=7, end_year=2026, end_month=1
                                     prob += working_together[p1, p2, d] <= x[p2, d]
                                 prob += pair_violations[p1, p2] >= (lpSum(working_together[p1, p2, d] for d in days_all) - 1) / len(days_all)
                                 penalty_terms_base.append(CONF['PENALTY_REPEATED_PAIRING'] * pair_violations[p1, p2])
+
+                    # --- SOFT CONSTRAINT: Incompatible Pairs ---
+                    if incompatible_pairs:
+                        for pair in incompatible_pairs:
+                            p1 = pair.pediatrician_1_id
+                            p2 = pair.pediatrician_2_id
+                            
+                            # Only apply if both are in the current optimization set (and strictly p1 < p2 or handle both ways)
+                            # Logic: If user defined (A, B), we block A+B.
+                            if p1 in pediatricians and p2 in pediatricians:
+                                for d in days_all:
+                                    v_pair = LpVariable(f"pair_viol_{p1}_{p2}_{d}", cat=LpBinary)
+                                    prob += x[p1, d] + x[p2, d] <= 1 + v_pair
+                                    penalty_terms_base.append(CONF['PENALTY_INCOMPATIBLE_PAIR'] * v_pair)
 
                     if soft_phase:
                         for p in pediatricians:

@@ -269,4 +269,75 @@
 
     <input type="submit" value="Guardar Cambios de Configuración">
 </form>
+
+<hr style="margin: 40px 0; border-color: #ddd;">
+
+<h2 class="mb-3">Incompatibilidades de Guardias (Pares)</h2>
+<p class="text-muted">Defina parejas de pediatras que NO deben trabajar juntos el mismo día. Esto se aplicará como una
+    restricción suave (se intentará evitar a toda costa, pero no bloqueará la generación si es imposible).</p>
+
+<div class="row">
+    <div class="col-md-8">
+        <!-- List existing -->
+        <table class="table table-bordered table-hover mb-4" style="background: white;">
+            <thead class="table-light">
+                <tr>
+                    <th>Pediatra 1</th>
+                    <th>Pediatra 2</th>
+                    <th style="width: 100px;">Acción</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for pair in incompatible_pairs %}
+                <tr>
+                    <td>{{ pair.pediatrician_1.name }}</td>
+                    <td>{{ pair.pediatrician_2.name }}</td>
+                    <td>
+                        <form action="{{ url_for('delete_incompatible_pair', pair_id=pair.id) }}" method="POST"
+                            style="display:inline;">
+                            <button type="submit" class="btn btn-outline-danger btn-sm py-0"
+                                onclick="return confirm('¿Eliminar restricción?')">Eliminar</button>
+                        </form>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="3" class="text-center text-muted">No hay restricciones definidas.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <!-- Add New -->
+        <div class="card shadow-sm border-0 bg-light">
+            <div class="card-body">
+                <h5 class="card-title mb-3">Añadir Nueva Incompatibilidad</h5>
+                <form action="{{ url_for('add_incompatible_pair') }}" method="POST" class="row g-3 align-items-end">
+                    <div class="col-md-5">
+                        <label class="form-label small fw-bold">Pediatra 1</label>
+                        <select name="p1_id" class="form-select" required>
+                            <option value="">Seleccionar...</option>
+                            {% for p in pediatricians %}
+                            <option value="{{ p.id }}">{{ p.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-5">
+                        <label class="form-label small fw-bold">Pediatra 2</label>
+                        <select name="p2_id" class="form-select" required>
+                            <option value="">Seleccionar...</option>
+                            {% for p in pediatricians %}
+                            <option value="{{ p.id }}">{{ p.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <button type="submit" class="btn btn-primary w-100">Añadir</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
