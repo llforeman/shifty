@@ -1476,7 +1476,20 @@ def manager_config():
     # Convert to dictionary for easier access in template
     config_dict = {item.key: item.value for item in config_items}
     
-    return render_template('manager_config.html', config=config_dict)
+    # Check for active generation job
+    active_job_id = None
+    if 'latest_generation_job' in config_dict:
+        job_id = config_dict['latest_generation_job']
+        try:
+            job = Job.fetch(job_id, connection=redis_conn)
+            # Check status (queued or started/running)
+            if job.get_status() in ['queued', 'started', 'deferred']:
+                active_job_id = job_id
+        except Exception:
+            # Job ID invalid or expired from Redis
+            pass
+
+    return render_template('manager_config.html', config=config_dict, active_job_id=active_job_id)
     
 @app.route('/admin/create_user', methods=['GET', 'POST'])
 @login_required
@@ -1576,6 +1589,15 @@ def generate_schedule_route():
             start_year, start_month, end_year, end_month, g.current_service.id,
             job_timeout='30m'  # 30 minute timeout for the job
         )
+        
+        # Save job ID to GlobalConfig for persistence
+        job_config = GlobalConfig.query.filter_by(key='latest_generation_job', service_id=g.current_service.id).first()
+        if job_config:
+            job_config.value = job.id
+        else:
+            job_config = GlobalConfig(key='latest_generation_job', value=job.id, service_id=g.current_service.id)
+            db.session.add(job_config)
+        db.session.commit()
         
         # Return job ID to frontend
         return jsonify({

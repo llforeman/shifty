@@ -213,6 +213,24 @@
             }
         }, 2000); // Poll every 2 seconds
     }
+
+    // Resume polling if active job exists
+    {% if active_job_id %}
+    (function () {
+        const statusMsg = document.getElementById('status-message');
+        const submitBtn = document.getElementById('submit-btn');
+        const spinner = document.getElementById('spinner');
+
+        statusMsg.textContent = 'Generación en curso... recuperando estado.';
+        statusMsg.style.background = '#fff3cd';
+        statusMsg.style.color = '#856404';
+        statusMsg.style.display = 'block';
+        submitBtn.disabled = true;
+        spinner.style.display = 'block';
+
+        pollJobStatus('{{ active_job_id }}');
+    })();
+    {% endif %}
 </script>
 
 <p>Aquí puede ajustar las variables que afectan a la lógica de optimización del algoritmo PuLP.</p>
