@@ -2006,7 +2006,30 @@ def notifications_page():
     # Fetch pending swap requests where I am the target
     pending_swaps = ShiftSwapRequest.query.filter_by(target_user_id=current_user.id, status='pending_peer').all()
     
-    return render_template('notifications.html', notifications=notifs, pending_swaps=pending_swaps)
+    # Validation Alerts
+    from validation import get_service_alerts
+    from datetime import date, timedelta
+    
+    personal_overlaps = []
+    service_alerts = []
+    
+    if current_user.active_service_id:
+        # Check next 60 days
+        start_check = date.today()
+        end_check = start_check + timedelta(days=60)
+        all_alerts = get_service_alerts(current_user.active_service_id, start_check, end_check)
+        
+        # Filter Overlaps for this user
+        personal_overlaps = [diff for diff in all_alerts['overlaps'] if diff.get('user_id') == current_user.id]
+        
+        # Service Alerts (Staffing)
+        service_alerts = all_alerts['staffing']
+
+    return render_template('notifications.html', 
+                           notifications=notifs, 
+                           pending_swaps=pending_swaps,
+                           personal_overlaps=personal_overlaps,
+                           service_alerts=service_alerts)
 
 @app.route('/api/respond_swap', methods=['POST'])
 @login_required
