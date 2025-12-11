@@ -82,16 +82,44 @@ def get_service_alerts(service_id, start_date, end_date):
                 o1 = items[i]
                 o2 = items[j]
                 
-                # Overlap conditions
+                # Overlap conditions (Time overlap)
                 if o1.start_time < o2.end_time and o2.start_time < o1.end_time:
                      msg = f"Incompatibilidad: {o1.user_name} - {o1.name} ({o1.start_time.strftime('%H:%M')}-{o1.end_time.strftime('%H:%M')}) coincide con {o2.name} ({o2.start_time.strftime('%H:%M')}-{o2.end_time.strftime('%H:%M')})"
-                     
                      alerts['overlaps'].append({
+                        'user_id': o1.user_id,
                         'user': o1.user_name,
                         'date': o1.start_time.date(),
                         'activities': [], 
                         'message': msg
                      })
+                     continue
+
+                # Post-Shift Check (Saliente de Guardia)
+                shift_obj = None
+                other_obj = None
+                
+                if o1.type == 'Shift':
+                    shift_obj = o1
+                    other_obj = o2
+                elif o2.type == 'Shift':
+                    shift_obj = o2
+                    other_obj = o1
+                
+                if shift_obj:
+                    shift_date = shift_obj.start_time.date()
+                    post_guardia_date = shift_date + timedelta(days=1)
+                    
+                    if other_obj.start_time.date() == post_guardia_date:
+                        msg = f"Descanso post-guardia no respetado: {shift_obj.user_name} tiene '{other_obj.name}' el día después de '{shift_obj.name}' ({shift_date.strftime('%d/%m')})"
+                         
+                        alerts['overlaps'].append({
+                            'user_id': shift_obj.user_id,
+                            'user': shift_obj.user_name,
+                            'date': post_guardia_date,
+                            'activities': [], 
+                            'level': 'error',
+                            'message': msg
+                        })
 
     # 3. Check Staffing Levels (Min/Max) - GRANULAR (Sweep Line)
     act_types = ActivityType.query.filter_by(service_id=service_id).all()

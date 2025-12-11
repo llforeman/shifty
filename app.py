@@ -2432,6 +2432,40 @@ def global_calendar():
         Shift.date <= end_of_week
     ).all()
 
+    # --- Conflict Detection: Shift vs Activity & Post-Shift ---
+    conflicted_shift_ids = set()
+    shifts_by_user = defaultdict(list)
+    for s in shifts:
+        # Determine exact time window
+        if s.date.weekday() >= 5: # Weekend
+             s_start = datetime.combine(s.date, datetime.min.time()) + timedelta(hours=9)
+             s_end = s_start + timedelta(hours=24)
+        else: # Weekday
+             s_start = datetime.combine(s.date, datetime.min.time()) + timedelta(hours=17)
+             s_end = s_start + timedelta(hours=15)
+        
+        for u in s.pediatrician.users:
+            shifts_by_user[u.id].append({
+                'obj': s,
+                'date': s.date,
+                'start': s_start,
+                'end': s_end
+            })
+
+    # Check Activities against Shifts
+    for a in activities:
+        user_shifts = shifts_by_user.get(a.user_id, [])
+        for s_data in user_shifts:
+            # 1. Post-Shift Rule: Shift on D -> Activity on D+1 is violation
+            if a.start_time.date() == s_data['date'] + timedelta(days=1):
+                conflict_ids.add(a.id)
+                conflicted_shift_ids.add(s_data['obj'].id)
+            
+            # 2. Direct Time Overlap
+            if a.start_time < s_data['end'] and s_data['start'] < a.end_time:
+                conflict_ids.add(a.id)
+                conflicted_shift_ids.add(s_data['obj'].id)
+
     # 3. Process Data for Timeline View (Advanced Packing)
     events_by_activity = {}
     
@@ -2451,6 +2485,11 @@ def global_calendar():
              
         ped_name = s.pediatrician.name
         
+        # Color Logic
+        color = '#3498db'
+        if s.id in conflicted_shift_ids:
+             color = '#e74c3c'
+
         # Determine Grouping based on View Mode
         if view_mode == 'users':
             category = ped_name
@@ -2464,9 +2503,9 @@ def global_calendar():
             'end_dt': end_dt,
             'title': display_title,
             'ped_name': ped_name,
-            'color': '#3498db',
+            'color': color,
             'category': category,
-            'conflict_id': None
+            'conflict_id': s.id if (s.id in conflicted_shift_ids) else None
         })
 
     # Process Activities
