@@ -1,7 +1,7 @@
 from datetime import datetime, date, timedelta
 from collections import defaultdict
 
-def get_service_alerts(service_id, start_date, end_date):
+def get_service_alerts(service_id, start_date, end_date, target_user_id=None):
     """
     Efficiently checks for Validation Alerts within a date range.
     Returns:
@@ -76,6 +76,8 @@ def get_service_alerts(service_id, start_date, end_date):
 
     # 2. Check Overlaps (Exhaustive Check per User)
     for user_id, items in items_by_user.items():
+        if target_user_id and user_id != target_user_id:
+            continue
         n = len(items)
         for i in range(n):
             for j in range(i + 1, n):
@@ -84,12 +86,18 @@ def get_service_alerts(service_id, start_date, end_date):
                 
                 # Overlap conditions (Time overlap)
                 if o1.start_time < o2.end_time and o2.start_time < o1.end_time:
+                     is_shift_conflict = (o1.type == 'Shift' or o2.type == 'Shift')
+                     alert_type = 'shift_conflict' if is_shift_conflict else 'activity_overlap'
+                     level = 'error' if is_shift_conflict else 'warning'
+                     
                      msg = f"Incompatibilidad: {o1.user_name} - {o1.name} ({o1.start_time.strftime('%H:%M')}-{o1.end_time.strftime('%H:%M')}) coincide con {o2.name} ({o2.start_time.strftime('%H:%M')}-{o2.end_time.strftime('%H:%M')})"
                      alerts['overlaps'].append({
                         'user_id': o1.user_id,
                         'user': o1.user_name,
                         'date': o1.start_time.date(),
                         'activities': [], 
+                        'alert_type': alert_type,
+                        'level': level,
                         'message': msg
                      })
                      continue
@@ -117,6 +125,7 @@ def get_service_alerts(service_id, start_date, end_date):
                             'user': shift_obj.user_name,
                             'date': post_guardia_date,
                             'activities': [], 
+                            'alert_type': 'shift_conflict',
                             'level': 'error',
                             'message': msg
                         })

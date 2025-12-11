@@ -4,6 +4,7 @@ from flask_migrate import Migrate
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import date, datetime, timedelta
+from collections import defaultdict
 import calendar
 from validation import check_overlap, get_validation_alerts
 import os
@@ -2017,10 +2018,14 @@ def notifications_page():
         # Check next 60 days
         start_check = date.today()
         end_check = start_check + timedelta(days=60)
-        all_alerts = get_service_alerts(current_user.active_service_id, start_check, end_check)
+        all_alerts = get_service_alerts(current_user.active_service_id, start_check, end_check, target_user_id=current_user.id)
         
         # Filter Overlaps for this user
-        personal_overlaps = [diff for diff in all_alerts['overlaps'] if diff.get('user_id') == current_user.id]
+        all_checks = [diff for diff in all_alerts['overlaps'] if diff.get('user_id') == current_user.id]
+        
+        # Split by Type
+        shift_conflicts = [x for x in all_checks if x.get('alert_type') == 'shift_conflict']
+        activity_conflicts = [x for x in all_checks if x.get('alert_type') != 'shift_conflict']
         
         # Service Alerts (Staffing)
         service_alerts = all_alerts['staffing']
@@ -2028,7 +2033,8 @@ def notifications_page():
     return render_template('notifications.html', 
                            notifications=notifs, 
                            pending_swaps=pending_swaps,
-                           personal_overlaps=personal_overlaps,
+                           shift_conflicts=shift_conflicts,
+                           activity_conflicts=activity_conflicts,
                            service_alerts=service_alerts)
 
 @app.route('/api/respond_swap', methods=['POST'])
