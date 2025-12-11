@@ -52,39 +52,78 @@ def get_service_alerts(service_id, start_date, end_date):
                         'message': msg
                      })
 
-    # 3. Check Staffing Levels (Min/Max)
+    # 3. Check Staffing Levels (Min/Max) - GRANULAR (Sweep Line)
     act_types = ActivityType.query.filter_by(service_id=service_id).all()
-    limits = {at.id: {'min': at.min_staff, 'max': at.max_staff, 'name': at.name} for at in act_types}
     
-    daily_counts = defaultdict(set)
+    # Organized: Activities by (Date, TypeID)
+    acts_by_date_type = defaultdict(list)
     for a in activities:
-        if a.activity_type_id in limits:
-            d_key = (a.start_time.date(), a.activity_type_id)
-            daily_counts[d_key].add(a.user_id)
+        d = a.start_time.date()
+        acts_by_date_type[(d, a.activity_type_id)].append(a)
+    
+    # To catch "Empty Days", we iterate the actual date range
+    curr_date = start_date
+    while curr_date <= end_date:
+        for at in act_types:
+            min_s = at.min_staff
+            max_s = at.max_staff
             
-    for (day, type_id), users in daily_counts.items():
-        count = len(users)
-        rule = limits[type_id]
+            if min_s is None and max_s is None:
+                continue
+
+            day_acts = acts_by_date_type.get((curr_date, at.id), [])
+            
+            if not day_acts:
+                # 0 Staff case
+                if min_s is not None and min_s > 0:
+                     # Heuristic: Skip weekends if not typical? Use user feedback if noisy.
+                     alerts['staffing'].append({
+                        'date': curr_date,
+                        'type': at.name,
+                        'count': 0,
+                        'min': min_s,
+                        'message': f"Ausencia total en {at.name} (Req: {min_s})",
+                        'level': 'error'
+                     })
+                continue
+
+            # Sweep Line for Granular Count
+            points = []
+            for a in day_acts:
+                points.append((a.start_time, 1))
+                points.append((a.end_time, -1))
+                
+            points.sort(key=lambda x: x[0])
+            
+            current_staff = 0
+            for i in range(len(points) - 1):
+                time_pt, change = points[i]
+                current_staff += change
+                
+                next_time = points[i+1][0]
+                
+                if next_time > time_pt:
+                    if min_s is not None and current_staff < min_s:
+                         alerts['staffing'].append({
+                            'date': curr_date,
+                            'type': at.name,
+                            'count': current_staff,
+                            'min': min_s,
+                            'message': f"Falta personal en {at.name} ({current_staff}/{min_s}) de {time_pt.strftime('%H:%M')} a {next_time.strftime('%H:%M')}",
+                            'level': 'error'
+                         })
+                    
+                    if max_s is not None and current_staff > max_s:
+                         alerts['staffing'].append({
+                            'date': curr_date,
+                            'type': at.name,
+                            'count': current_staff,
+                            'max': max_s,
+                            'message': f"Exceso en {at.name} ({current_staff}/{max_s}) de {time_pt.strftime('%H:%M')} a {next_time.strftime('%H:%M')}",
+                            'level': 'warning'
+                         })
         
-        if rule['min'] is not None and count < rule['min']:
-            alerts['staffing'].append({
-                'date': day,
-                'type': rule['name'],
-                'count': count,
-                'min': rule['min'],
-                'message': f"Falta personal en {rule['name']} ({count}/{rule['min']})",
-                'level': 'error'
-            })
-            
-        if rule['max'] is not None and count > rule['max']:
-             alerts['staffing'].append({
-                'date': day,
-                'type': rule['name'],
-                'count': count,
-                'max': rule['max'],
-                'message': f"Exceso de personal en {rule['name']} ({count}/{rule['max']})",
-                'level': 'warning'
-            })
+        curr_date += timedelta(days=1)
 
     return alerts
 
