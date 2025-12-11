@@ -124,16 +124,56 @@
             color: #856404;
             border: 1px solid #ffeeba;
         }
+
+        /* Global Spinner */
+        #global-spinner {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.8);
+            z-index: 9999;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+        }
+
+        .spinner-circle {
+            width: 50px;
+            height: 50px;
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #3498db;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        .spinner-text {
+            margin-top: 15px;
+            color: #3498db;
+            font-weight: bold;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
     </style>
     {% block extra_styles %}{% endblock %}
 </head>
 
 <body>
     <div class="sidebar">
+        <!-- ... sidebar content unchanged ... -->
         <div class="sidebar-logo">
             <img src="https://xifty.org/wp-content/uploads/2025/12/xiftydarkest-scaled-e1765322683572.png"
                 alt="Shifty Logo">
-            <!-- Shifty text removed as image likely contains logo text, or user just wanted image replaced. keeping h3 hidden or remove? User said "change shifty image". The h3 says "Shifty". The image is large. I'll remove the text to be cleaner or keep? User didn't say remove text. I'll keep it but ensure image fits. -->
         </div>
 
         {% if current_user.is_authenticated %}
@@ -236,6 +276,51 @@
             {% block content %}{% endblock %}
         </div>
     </div>
+
+    <div id="global-spinner">
+        <div class="spinner-circle"></div>
+        <div class="spinner-text">Cargando...</div>
+    </div>
+
+    <script>
+        // Use event delegation to catch all clicks on sidebar links and other navigation
+        document.addEventListener('click', function (e) {
+            let target = e.target.closest('a');
+
+            // Should valid link
+            if (target && target.href) {
+                // Ignore anchor links, new tabs, downloads
+                if (target.getAttribute('href').startsWith('#') ||
+                    target.target === '_blank' ||
+                    target.hasAttribute('download')) {
+                    return;
+                }
+
+                // Ignore if holding modifier keys (ctrl/cmd click opens new tab)
+                if (e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) {
+                    return;
+                }
+
+                // Check if it's a same-origin link
+                if (target.hostname === window.location.hostname) {
+                    if (!target.href.includes('javascript:')) {
+                        document.getElementById('global-spinner').style.display = 'flex';
+                    }
+                }
+            }
+        });
+
+        document.addEventListener('submit', function (e) {
+            if (!e.defaultPrevented) {
+                document.getElementById('global-spinner').style.display = 'flex';
+            }
+        });
+
+        // Hide spinner on page show (needed for back/forward cache)
+        window.addEventListener('pageshow', function (event) {
+            document.getElementById('global-spinner').style.display = 'none';
+        });
+    </script>
 </body>
 
 </html>
