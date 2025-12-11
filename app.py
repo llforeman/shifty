@@ -2340,7 +2340,8 @@ def global_calendar():
     start_of_week = today - timedelta(days=today.weekday()) + timedelta(weeks=week_offset)
     end_of_week = start_of_week + timedelta(days=6)
     
-    view_mode = request.args.get('view', 'standard')
+    view_mode = request.args.get('view', 'activities') # Default to 'activities' (was 'standard'/'timeline', now mapping to data modes)
+    if view_mode == 'standard': view_mode = 'activities' # Legacy handle
     
     days = [start_of_week + timedelta(days=i) for i in range(7)]
     day_names = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
@@ -2425,13 +2426,23 @@ def global_calendar():
              start_dt = datetime.combine(s_date, datetime.min.time()) + timedelta(hours=17)
              end_dt = start_dt + timedelta(hours=15)
              
+        ped_name = s.pediatrician.name
+        
+        # Determine Grouping based on View Mode
+        if view_mode == 'users':
+            category = ped_name
+            display_title = title # Show Activity Name
+        else:
+            category = title
+            display_title = ped_name # Show User Name
+
         logical_events.append({
             'start_dt': start_dt,
             'end_dt': end_dt,
-            'title': title, # Use title for Category grouping? Yes
-            'ped_name': s.pediatrician.name,
+            'title': display_title,
+            'ped_name': ped_name,
             'color': '#3498db',
-            'category': title,
+            'category': category,
             'conflict_id': None
         })
 
@@ -2450,13 +2461,21 @@ def global_calendar():
              color = '#e74c3c'
              is_conflict = True
              
+        # Determine Grouping
+        if view_mode == 'users':
+            category = p_name
+            display_title = a_type_name
+        else:
+            category = a_type_name
+            display_title = p_name
+
         logical_events.append({
             'start_dt': a.start_time,
             'end_dt': a.end_time,
-            'title': a_type_name,
+            'title': display_title,
             'ped_name': p_name,
             'color': color,
-            'category': a_type_name,
+            'category': category,
             'conflict_id': a.id if is_conflict else None
         })
 

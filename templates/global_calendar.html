@@ -102,11 +102,16 @@
             &gt;</a>
     </div>
 
-    <div class="btn-group">
-        <a href="{{ url_for('global_calendar', week_offset=week_offset, view='standard') }}"
-            class="btn btn-sm {{ 'btn-primary' if view_mode == 'standard' else 'btn-outline-primary' }}">Standard</a>
-        <a href="{{ url_for('global_calendar', week_offset=week_offset, view='timeline') }}"
-            class="btn btn-sm {{ 'btn-primary' if view_mode == 'timeline' else 'btn-outline-primary' }}">Horario</a>
+    <!-- View Mode Toggles -->
+    <div class="btn-group" role="group">
+        <a href="{{ url_for('global_calendar', view='activities', week_offset=request.args.get('week_offset', 0)) }}"
+            class="btn {{ 'btn-primary' if view_mode == 'activities' else 'btn-outline-primary' }}">
+            Por Actividad
+        </a>
+        <a href="{{ url_for('global_calendar', view='users', week_offset=request.args.get('week_offset', 0)) }}"
+            class="btn {{ 'btn-primary' if view_mode == 'users' else 'btn-outline-primary' }}">
+            Por Usuario
+        </a>
     </div>
 </div>
 
@@ -115,7 +120,9 @@
     <table class="activity-view-table">
         <thead>
             <tr>
-                <th style="width: 150px;">Actividad</th>
+                <th style="width: 150px;">
+                    {{ 'Usuario' if view_mode == 'users' else 'Actividad' }}
+                </th>
                 {% for day in days %}
                 <th>{{ day_names[loop.index0] }}<br><small>{{ day.strftime('%d/%m') }}</small></th>
                 {% endfor %}
@@ -129,9 +136,8 @@
                 {% set date_str = day.strftime('%Y-%m-%d') %}
                 {% set cell_h = cell_heights.get(activity_type, {}).get(date_str, 50) %}
 
-                <td class="activity-cell" style="{{ 'height: ' ~ cell_h ~ 'px;' if view_mode == 'timeline' else '' }}">
+                <td class="activity-cell" style="height: {{ cell_h }}px;">
 
-                    {% if view_mode == 'timeline' %}
                     <!-- TIMELINE VIEW -->
 
                     <!-- Background Names -->
@@ -155,20 +161,7 @@
                     {% endfor %}
                     {% endif %}
 
-                    {% else %}
-                    <!-- STANDARD VIEW (LIST) -->
-                    <div style="padding: 5px;">
-                        {% if activity_data[date_str] %}
-                        {% for event in activity_data[date_str] %}
-                        <div
-                            style="font-size: 0.85em; margin-bottom: 4px; padding: 2px; background-color: #f8f9fa; border-left: 3px solid {{ event.color }}; border-radius: 2px;">
-                            <span style="font-weight: bold; color: #555;">({{ event.time_str }})</span>
-                            {{ event.pediatrician }}
-                        </div>
-                        {% endfor %}
-                        {% endif %}
-                    </div>
-                    {% endif %}
+
 
                 </td>
                 {% endfor %}
