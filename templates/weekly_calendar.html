@@ -198,18 +198,18 @@
                     <!-- Event Card -->
                     <div class="event-card" data-id="{{ event.id }}" {% if current_user.pediatrician_id and
                         (current_user.pediatrician.name==event.ped_name or current_user.role=='manager' ) and
-                        event.type=='activity' %} draggable="true" style="cursor: grab;" {% endif %} {% if
-                        event.type=='activity' %} onclick="openEditActivityModal({
+                        event.type=='activity' %} {% endif %} {% if event.type=='activity' %} onclick="openEditActivityModal({
                             id: '{{ event.id }}',
                             typeId: '{{ event.activity_type_id }}',
                             start: '{{ event.start_iso }}',
                             end: '{{ event.end_iso }}',
                             recurrence: '{{ event.recurrence_type }}',
-                            date: '{{ event.start_iso[:10] }}'
-                        })"
+                            date: '{{ event.start_iso[:10] }}',
+                            description: '{{ event.description | default("") | replace("'", "\\'") | replace(" \n", " "
+                        ) }}' })" draggable="true"
                         style="top: {{ top + 50 }}px; height: {{ height }}px; background-color: {{ event.color }}; 
-                               width: calc({{ width }}% - 4px); left: calc({{ left }}% + 2px); pointer-events: auto; cursor: pointer;"
-                        {% else %} style="top: {{ top + 50 }}px; height: {{ height }}px; background-color: {{ event.color }}; 
+                               width: calc({{ width }}% - 4px); left: calc({{ left }}% + 2px); pointer-events: auto; cursor: pointer;" {% else %}
+                        style="top: {{ top + 50 }}px; height: {{ height }}px; background-color: {{ event.color }}; 
                                width: calc({{ width }}% - 4px); left: calc({{ left }}% + 2px); pointer-events: none;"
                         {% endif %}>
                         <span class="event-title">{{ event.title }}</span>
@@ -281,6 +281,26 @@
                 </select>
             </div>
 
+            <div class="form-group">
+                <label>Descripción (Opcional)</label>
+                <textarea name="description" id="modal_description" rows="2"
+                    style="width: 100%; padding: 8px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 4px;"></textarea>
+            </div>
+
+            {% if current_user.role in ['manager', 'admin', 'superadmin'] %}
+            <div class="form-group" id="participants-container">
+                <label>Participantes (Solo al crear)</label>
+                <small style="display:block; color: #666; margin-bottom: 5px;">Manten pulsado Ctrl (o Cmd) para
+                    seleccionar varios. Si está vacío, solo tú.</small>
+                <select name="participants" id="modal_participants" multiple
+                    style="width: 100%; padding: 8px; margin-bottom: 10px; height: 100px;">
+                    {% for user in service_users %}
+                    <option value="{{ user.id }}">{{ user.username }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
+
             <div style="display: flex; justify-content: space-between; align-items: center;">
                 <!-- Left side: Delete button (only visible in edit mode) -->
                 <button type="button" id="btnDelete" onclick="attemptDelete()"
@@ -330,6 +350,17 @@
         document.getElementById('modal_activity_id').value = "";
         document.getElementById('modal_activity_type').value = "";
         document.getElementById('modal_recurrence').value = "once";
+        document.getElementById('modal_activity_type').value = "";
+        document.getElementById('modal_recurrence').value = "once";
+        document.getElementById('modal_description').value = ""; // Reset description
+
+        // Reset Participants
+        const partSelect = document.getElementById('modal_participants');
+        if (partSelect) {
+            partSelect.selectedIndex = -1;
+            document.getElementById('participants-container').style.display = 'block'; // Show for Create
+        }
+
         document.getElementById('btnDelete').style.display = 'none';
 
         // Hide delete options
@@ -365,7 +396,14 @@
         document.getElementById('modal_activity_type').value = dataset.typeId;
         document.getElementById('modal_start_time').value = dataset.start;
         document.getElementById('modal_end_time').value = dataset.end;
+        document.getElementById('modal_start_time').value = dataset.start;
+        document.getElementById('modal_end_time').value = dataset.end;
         document.getElementById('modal_recurrence').value = dataset.recurrence;
+        document.getElementById('modal_description').value = dataset.description; // Set description
+
+        // Hide Participants
+        const partContainer = document.getElementById('participants-container');
+        if (partContainer) partContainer.style.display = 'none';
 
         document.getElementById('btnDelete').style.display = 'block';
         document.getElementById('deleteOptions').style.display = 'none';
