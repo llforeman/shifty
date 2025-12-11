@@ -2508,7 +2508,7 @@ def global_calendar():
                 curr = datetime.combine(curr.date() + timedelta(days=1), datetime.min.time())
             
             # 2. Find First Available Row
-            user_id = e['ped_name']
+            sub_key = e['title']
             assigned_row = 0
             while True:
                 conflict = False
@@ -2517,15 +2517,15 @@ def global_calendar():
                     
                     owner = day_row_map[d].get(assigned_row)
                     # Conflict if row is occupied by SOMEONE ELSE
-                    if owner is not None and owner != user_id:
+                    if owner is not None and owner != sub_key:
                         conflict = True
                         break
                 
                 if not conflict:
-                    # Reserve this row for this user on all covered days
+                    # Reserve this row for this user/activity on all covered days
                     for d in covered_days:
                         if d not in day_row_map: day_row_map[d] = {}
-                        day_row_map[d][assigned_row] = user_id
+                        day_row_map[d][assigned_row] = sub_key
                     break
                 else:
                     assigned_row += 1
