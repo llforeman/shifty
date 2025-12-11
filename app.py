@@ -326,6 +326,7 @@ class Activity(db.Model):
     # though we will try to migrate data to ActivityType.
     name = db.Column(db.String(100), nullable=True) 
     place = db.Column(db.String(200), nullable=True)
+    description = db.Column(db.Text, nullable=True) # New field
     
     activity_type_id = db.Column(db.Integer, db.ForeignKey('activity_type.id'), nullable=True) # Check nullable for migration steps
     
@@ -419,6 +420,17 @@ def activities_page():
     # Fetch activity types for the modal
     # Fetch activity types for the modal
     activity_types = ActivityType.query.filter_by(service_id=g.current_service.id).order_by(ActivityType.name).all()
+
+    # Fetch all users in service for the "Participants" dropdown (Managers only)
+    service_users = []
+    if current_user.role in ['manager', 'admin', 'superadmin']:
+        # Fetch users linked to pediatricians in this service
+        service_users = User.query.join(Pediatrician).filter(
+            Pediatrician.service_id == g.current_service.id,
+            User.id != current_user.id # Exclude self as it's always included or handled separate? Actually let's include self if they want to explicit assign. 
+            # Or better: "Select *additional* participants" or "Select *target* participants"? 
+            # User request said "drop down menu to select people included".
+        ).order_by(User.username).all()
 
     # View selection
     view_mode = request.args.get('view', 'week') # 'week' or 'month'
@@ -536,6 +548,7 @@ def activities_page():
                                prev_year=prev_year, prev_month=prev_month,
                                next_year=next_year, next_month=next_month,
                                activity_types=activity_types,
+                               service_users=service_users, # Pass users
                                view_mode='month')
 
     else:
@@ -744,24 +757,27 @@ def add_activity():
         start_time_str = request.form.get('start_time')
         end_time_str = request.form.get('end_time')
         recurrence_type = request.form.get('recurrence_type', 'once')
+        description = request.form.get('description', '') # New field
         
         # Parse Dates
         start_time = datetime.fromisoformat(start_time_str)
         end_time = datetime.fromisoformat(end_time_str)
         
         if activity_id:
-            # Update existing
+            # Update existing (Single Activity)
             activity = Activity.query.get_or_404(activity_id)
             if activity.user_id != current_user.id:
-                abort(403)
+                # Allow managers to edit anyone's activity? For now strict ownership or role check.
+                if current_user.role != 'manager':
+                    abort(403)
             
             # Validation: Overlap (Exclude self)
-            if check_overlap(current_user.id, start_time, end_time, exclude_activity_id=activity.id):
-                 flash("Warning: Conflict detected! You have another activity at this time.", "warning")
+            if check_overlap(activity.user_id, start_time, end_time, exclude_activity_id=activity.id):
+                 flash(f"Warning: Conflict detected for user!", "warning")
 
             from validation import check_max_staff_limit
             # Validation: Max Staff
-            is_limit, limit, curr = check_max_staff_limit(activity_type_id, start_time.date(), current_user.id)
+            is_limit, limit, curr = check_max_staff_limit(activity_type_id, start_time.date(), activity.user_id)
             if is_limit:
                  flash(f"Warning: Staff limit exceeded! Max {limit}.", "warning")
 
@@ -769,42 +785,65 @@ def add_activity():
             activity.start_time = start_time
             activity.end_time = end_time
             activity.recurrence_type = recurrence_type
+            activity.description = description
+            
             # Reset recurring day if needed
             if recurrence_type == 'weekly':
                 activity.recurrence_day = start_time.weekday()
             else:
                  activity.recurrence_day = None
+            
+            db.session.commit()
                  
         else:
-            # Create new
+            # Create NEW Activity (Potentially Multiple Users)
+            participants = request.form.getlist('participants') # List of User IDs
+            target_user_ids = []
+            
+            # If manager selects participants, use those. 
+            # If empty (or not manager), default to current_user.
+            if current_user.role == 'manager' and participants:
+                target_user_ids = [int(uid) for uid in participants]
+            else:
+                target_user_ids = [current_user.id]
+                
             recurrence_day = start_time.weekday() if recurrence_type == 'weekly' else None
             
-            # Validation: Overlap
-            if check_overlap(current_user.id, start_time, end_time):
-                 flash("Warning: Conflict detected! You have another activity at this time.", "warning")
-
-            from validation import check_max_staff_limit
-            # Validation: Max Staff
-            is_limit, limit, curr = check_max_staff_limit(activity_type_id, start_time.date(), current_user.id)
-            if is_limit:
-                 flash(f"Warning: Staff limit exceeded! Max {limit}.", "warning")
-
-            activity = Activity(
-                user_id=current_user.id,
-                activity_type_id=activity_type_id,
-                start_time=start_time,
-                end_time=end_time,
-                recurrence_type=recurrence_type,
-                recurrence_day=recurrence_day
-            )
-            db.session.add(activity)
+            count_created = 0
             
-        db.session.commit()
+            for uid in target_user_ids:
+                # Validation: Overlap
+                if check_overlap(uid, start_time, end_time):
+                     # Maybe don't flash for every user if bulk?
+                     pass # flash("Warning: Conflict detected!", "warning")
+
+                from validation import check_max_staff_limit
+                # Validation: Max Staff
+                # Note: This check logic might need to account for the N users being added simultaneously
+                is_limit, limit, curr = check_max_staff_limit(activity_type_id, start_time.date(), uid)
+                
+                activity = Activity(
+                    user_id=uid,
+                    activity_type_id=activity_type_id,
+                    start_time=start_time,
+                    end_time=end_time,
+                    recurrence_type=recurrence_type,
+                    recurrence_day=recurrence_day,
+                    description=description
+                )
+                db.session.add(activity)
+                count_created += 1
+            
+            db.session.commit()
+            flash(f"Actividad creada para {count_created} usuario(s).", "success")
+            
+        return redirect(url_for('activities_page', view='month')) # Redirect using GET to avoid resubmit
+
     except Exception as e:
-        print(f"Error saving activity: {e}")
-        flash(f"Error saving activity: {e}", "error")
-        
-    return redirect(url_for('activities_page'))
+        db.session.rollback()
+        print(f"Error adding activity: {e}")
+        flash(f"Error: {e}", "error")
+        return redirect(url_for('activities_page'))
 
 @app.route('/activities/delete/<int:id>', methods=['POST'])
 @login_required

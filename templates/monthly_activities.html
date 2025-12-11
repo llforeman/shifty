@@ -146,8 +146,9 @@
                     start: '{{ event.start_iso }}',
                     end: '{{ event.end_iso }}',
                     recurrence: '{{ event.recurrence_type }}',
-                    date: '{{ event.start_iso[:10] }}'
-                 }, event)" {% endif %}>
+                    date: '{{ event.start_iso[:10] }}',
+                    description: '{{ event.description | default("") | replace("'", "\\'") | replace(" \n", " " ) }}'
+            }, event)" {% endif %}>
             <strong>{{ event.time }}</strong> {{ event.title }}
         </div>
         {% endfor %}
@@ -185,6 +186,26 @@
                     {% endfor %}
                 </select>
             </div>
+
+            <div class="form-group">
+                <label>Descripción (Opcional)</label>
+                <textarea name="description" id="modal_description" rows="2"
+                    style="width: 100%; padding: 8px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 4px;"></textarea>
+            </div>
+
+            {% if current_user.role in ['manager', 'admin', 'superadmin'] %}
+            <div class="form-group" id="participants-container">
+                <label>Participantes (Solo al crear)</label>
+                <small style="display:block; color: #666; margin-bottom: 5px;">Manten pulsado Ctrl (o Cmd) para
+                    seleccionar varios. Si está vacío, solo tú.</small>
+                <select name="participants" id="modal_participants" multiple
+                    style="width: 100%; padding: 8px; margin-bottom: 10px; height: 100px;">
+                    {% for user in service_users %}
+                    <option value="{{ user.id }}">{{ user.username }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
 
             <div class="form-group">
                 <label>Inicio</label>
@@ -254,6 +275,15 @@
         document.getElementById('modal_activity_id').value = "";
         document.getElementById('modal_activity_type').value = "";
         document.getElementById('modal_recurrence').value = "once";
+        document.getElementById('modal_description').value = ""; // Reset description
+
+        // Reset Participants
+        const partSelect = document.getElementById('modal_participants');
+        if (partSelect) {
+            partSelect.selectedIndex = -1;
+            document.getElementById('participants-container').style.display = 'block'; // Show for Create
+        }
+
         document.getElementById('btnDelete').style.display = 'none';
         document.getElementById('deleteOptions').style.display = 'none';
 
@@ -282,6 +312,11 @@
         document.getElementById('modal_start_time').value = dataset.start;
         document.getElementById('modal_end_time').value = dataset.end;
         document.getElementById('modal_recurrence').value = dataset.recurrence;
+        document.getElementById('modal_description').value = dataset.description; // Set description
+
+        // Hide Participants for existing activity (Edit Mode)
+        const partContainer = document.getElementById('participants-container');
+        if (partContainer) partContainer.style.display = 'none';
 
         document.getElementById('btnDelete').style.display = 'block';
         document.getElementById('deleteOptions').style.display = 'none';
