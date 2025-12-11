@@ -10,45 +10,81 @@ def get_service_alerts(service_id, start_date, end_date):
         'staffing': [ {date, type, count, min, max, message, level} ]
     }
     """
-    from app import db, ActivityType, Activity, User, Pediatrician
+
+
+    from app import db, ActivityType, Activity, User, Pediatrician, Shift
 
     alerts = {
         'overlaps': [],
         'staffing': []
     }
 
-    # 1. Fetch All Activities in Range
+    # 1. Fetch All Activities & Shifts in Range
     activities = Activity.query.join(User).join(Pediatrician).filter(
         Pediatrician.service_id == service_id,
         Activity.start_time >= datetime.combine(start_date, datetime.min.time()),
         Activity.end_time <= datetime.combine(end_date, datetime.max.time())
-    ).order_by(Activity.user_id, Activity.start_time).all()
+    ).all()
 
-    # 2. Check Overlaps (Exhaustive Check per User)
-    activities_by_user = defaultdict(list)
+    shifts = Shift.query.join(Pediatrician).filter(
+        Pediatrician.service_id == service_id,
+        Shift.date >= start_date,
+        Shift.date <= end_date
+    ).all()
+
+    # Helper for unified objects
+    class TimelineObj:
+        def __init__(self, ped_id, start, end, name, obj_type, user_display_name):
+            self.ped_id = ped_id
+            self.start_time = start
+            self.end_time = end
+            self.name = name
+            self.type = obj_type
+            self.user_name = user_display_name
+
+    items_by_ped = defaultdict(list)
+
+    # Process Activities
     for a in activities:
-        activities_by_user[a.user_id].append(a)
+        ped = a.user.pediatrician
+        if not ped: continue 
+        
+        u_name = ped.name
+        name = a.activity_type.name if a.activity_type else (a.name or 'Activity')
+        obj = TimelineObj(ped.id, a.start_time, a.end_time, name, 'Activity', u_name)
+        items_by_ped[ped.id].append(obj)
 
-    for user_id, user_acts in activities_by_user.items():
-        n = len(user_acts)
+    # Process Shifts (Convert to Time Range)
+    for s in shifts:
+        s_date = s.date
+        title = s.type if s.type else 'Guardia'
+        if s_date.weekday() >= 5: # Weekend (Sat/Sun)
+             start_dt = datetime.combine(s_date, datetime.min.time()) + timedelta(hours=9)
+             end_dt = start_dt + timedelta(hours=24)
+        else: # Weekday
+             start_dt = datetime.combine(s_date, datetime.min.time()) + timedelta(hours=17)
+             end_dt = start_dt + timedelta(hours=15)
+        
+        u_name = s.pediatrician.name
+        obj = TimelineObj(s.pediatrician_id, start_dt, end_dt, title, 'Shift', u_name)
+        items_by_ped[s.pediatrician_id].append(obj)
+
+    # 2. Check Overlaps (Exhaustive Check per Pediatrician)
+    for ped_id, items in items_by_ped.items():
+        n = len(items)
         for i in range(n):
             for j in range(i + 1, n):
-                a1 = user_acts[i]
-                a2 = user_acts[j]
+                o1 = items[i]
+                o2 = items[j]
                 
-                # Overlap condition: Start1 < End2 AND Start2 < End1
-                if a1.start_time < a2.end_time and a2.start_time < a1.end_time:
-                     user_name = a1.user.pediatrician.name if a1.user.pediatrician else a1.user.username
-                     # Improve message
-                     type1 = a1.activity_type.name if a1.activity_type else 'Activity'
-                     type2 = a2.activity_type.name if a2.activity_type else 'Activity'
-                     
-                     msg = f"Incompatibilidad: {user_name} - {type1} ({a1.start_time.strftime('%H:%M')}-{a1.end_time.strftime('%H:%M')}) coincide con {type2} ({a2.start_time.strftime('%H:%M')}-{a2.end_time.strftime('%H:%M')})"
+                # Overlap conditions
+                if o1.start_time < o2.end_time and o2.start_time < o1.end_time:
+                     msg = f"Incompatibilidad: {o1.user_name} - {o1.name} ({o1.start_time.strftime('%H:%M')}-{o1.end_time.strftime('%H:%M')}) coincide con {o2.name} ({o2.start_time.strftime('%H:%M')}-{o2.end_time.strftime('%H:%M')})"
                      
                      alerts['overlaps'].append({
-                        'user': user_name,
-                        'date': a1.start_time.date(),
-                        'activities': [a1, a2],
+                        'user': o1.user_name,
+                        'date': o1.start_time.date(),
+                        'activities': [], 
                         'message': msg
                      })
 
