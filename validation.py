@@ -20,8 +20,9 @@ def get_service_alerts(service_id, start_date, end_date):
     }
 
     # 1. Fetch All Activities & Shifts in Range
-    activities = Activity.query.join(User).join(Pediatrician).filter(
-        Pediatrician.service_id == service_id,
+    # Use Activity.user criteria to match Global Calendar logic (active_service_id)
+    activities = Activity.query.filter(
+        Activity.user.has(active_service_id=service_id),
         Activity.start_time >= datetime.combine(start_date, datetime.min.time()),
         Activity.end_time <= datetime.combine(end_date, datetime.max.time())
     ).all()
@@ -34,27 +35,26 @@ def get_service_alerts(service_id, start_date, end_date):
 
     # Helper for unified objects
     class TimelineObj:
-        def __init__(self, ped_id, start, end, name, obj_type, user_display_name):
-            self.ped_id = ped_id
+        def __init__(self, user_id, start, end, name, obj_type, user_display_name):
+            self.user_id = user_id
             self.start_time = start
             self.end_time = end
             self.name = name
             self.type = obj_type
             self.user_name = user_display_name
 
-    items_by_ped = defaultdict(list)
+    items_by_user = defaultdict(list)
 
     # Process Activities
     for a in activities:
-        ped = a.user.pediatrician
-        if not ped: continue 
-        
-        u_name = ped.name
+        user = a.user
+        # Display name: Ped Name if avail, else Username
+        u_name = user.pediatrician.name if user.pediatrician else user.username
         name = a.activity_type.name if a.activity_type else (a.name or 'Activity')
-        obj = TimelineObj(ped.id, a.start_time, a.end_time, name, 'Activity', u_name)
-        items_by_ped[ped.id].append(obj)
+        obj = TimelineObj(user.id, a.start_time, a.end_time, name, 'Activity', u_name)
+        items_by_user[user.id].append(obj)
 
-    # Process Shifts (Convert to Time Range)
+    # Process Shifts (Convert to Time Range & Map to User)
     for s in shifts:
         s_date = s.date
         title = s.type if s.type else 'Guardia'
@@ -65,12 +65,17 @@ def get_service_alerts(service_id, start_date, end_date):
              start_dt = datetime.combine(s_date, datetime.min.time()) + timedelta(hours=17)
              end_dt = start_dt + timedelta(hours=15)
         
-        u_name = s.pediatrician.name
-        obj = TimelineObj(s.pediatrician_id, start_dt, end_dt, title, 'Shift', u_name)
-        items_by_ped[s.pediatrician_id].append(obj)
+        # Map Shift (Pediatrician) -> User(s)
+        # Because we compare with Activities (User-based), we must map Shift -> User ID
+        linked_users = s.pediatrician.users
+        for u in linked_users:
+            # Inherit name from Pediatrician for shifts
+            u_name = s.pediatrician.name 
+            obj = TimelineObj(u.id, start_dt, end_dt, title, 'Shift', u_name)
+            items_by_user[u.id].append(obj)
 
-    # 2. Check Overlaps (Exhaustive Check per Pediatrician)
-    for ped_id, items in items_by_ped.items():
+    # 2. Check Overlaps (Exhaustive Check per User)
+    for user_id, items in items_by_user.items():
         n = len(items)
         for i in range(n):
             for j in range(i + 1, n):
