@@ -189,8 +189,12 @@
 
             <div class="form-group">
                 <label>Descripción (Opcional)</label>
+                <p style="color: #e53e3e; font-weight: bold; font-size: 0.85em; margin-top: 0; margin-bottom: 5px;">
+                    ⚠️ Por favor, NO introduzca nombres de pacientes ni datos clínicos en este campo.
+                </p>
                 <textarea name="description" id="modal_description" rows="2"
-                    style="width: 100%; padding: 8px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 4px;"></textarea>
+                    placeholder="Ej: Reunión de equipo, Formación..."
+                    style="width: 100%; padding: 8px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 4px; outline-color: #e53e3e;"></textarea>
             </div>
 
             {% if current_user.role in ['manager', 'admin', 'superadmin'] %}
