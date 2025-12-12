@@ -2287,7 +2287,7 @@ def respond_swap():
                 db.session.add(Notification(
                     user_id=admin.id,
                     message=f"Swap Request Pending Confirmation: {req.requester.username} <-> {current_user.username}",
-                    link=url_for('admin_swaps_page')
+                    link=url_for('admin_dashboard')
                 ))
             db.session.commit()
             return jsonify({'status': 'success', 'message': 'Request accepted. Waiting for Admin confirmation.'})

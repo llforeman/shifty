@@ -141,7 +141,8 @@
         <p style="margin: 5px 0 0; opacity: 0.9;">Gestión de alertas y cambios</p>
     </div>
     <div class="dashboard-info">
-        <strong>Servicio:</strong> {{ current_user.pediatrician.service.name if current_user.pediatrician else 'N/A' }}
+        <strong>Servicio:</strong> {{ g.current_service.name if g.current_service else
+        (current_user.pediatrician.service.name if current_user.pediatrician else 'N/A') }}
     </div>
 </div>
 
