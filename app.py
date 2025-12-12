@@ -251,6 +251,18 @@ class ActivitySwapRequest(db.Model):
     requester_activity = db.relationship('Activity', foreign_keys=[requester_activity_id])
     target_activity = db.relationship('Activity', foreign_keys=[target_activity_id])
 
+class AuditLog(db.Model):
+    __tablename__ = 'audit_log'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    action = db.Column(db.String(50), nullable=False) # CREATE, UPDATE, DELETE
+    target_type = db.Column(db.String(50), nullable=False) # Activity, Shift, Schedule
+    target_id = db.Column(db.Integer, nullable=True) # ID of object
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    details = db.Column(db.Text, nullable=True) # JSON or string description
+    
+    user = db.relationship('User', backref='audit_logs')
+
 class IncompatiblePair(db.Model):
     __tablename__ = 'incompatible_pair'
     id = db.Column(db.Integer, primary_key=True)
@@ -419,6 +431,19 @@ def activities_page():
     activity_types = ActivityType.query.order_by(ActivityType.name).all()
     # Fetch activity types for the modal
     # Fetch activity types for the modal
+    activity_types = ActivityType.query.filter_by(service_id=g.current_service.id).order_by(ActivityType.name).all()
+
+    # Fetch all users in service for the "Participants" dropdown (Managers only)
+    service_users = []
+    if current_user.role in ['manager', 'admin', 'superadmin']:
+        # Fetch users linked to pediatricians in this service
+        service_users = User.query.join(Pediatrician).filter(
+            Pediatrician.service_id == g.current_service.id,
+            User.id != current_user.id # Exclude self as it's always included or handled separate? Actually let's include self if they want to explicit assign. 
+            # Or better: "Select *additional* participants" or "Select *target* participants"? 
+            # User request said "drop down menu to select people included".
+        ).order_by(User.username).all()
+
     activity_types = ActivityType.query.filter_by(service_id=g.current_service.id).order_by(ActivityType.name).all()
 
     # Fetch all users in service for the "Participants" dropdown (Managers only)
@@ -748,6 +773,22 @@ def activities_page():
                                activity_types=activity_types,
                                view_mode='week')
 
+def log_change(user_id, action, target_type, target_id, details=None):
+    try:
+        log = AuditLog(
+            user_id=user_id,
+            action=action,
+            target_type=target_type,
+            target_id=target_id,
+            details=details
+        )
+        db.session.add(log)
+        # Note: Caller must commit db.session for this to be saved!
+        # Or we can commit here, but safer to let caller handle transaction.
+        # However, for logs, sometimes we want them even if transaction fails? No, usually with it.
+    except Exception as e:
+        print(f"Error logging audit: {e}")
+
 @app.route('/activities/add', methods=['POST'])
 @login_required
 def add_activity():
@@ -793,6 +834,7 @@ def add_activity():
             else:
                  activity.recurrence_day = None
             
+            log_change(current_user.id, "UPDATE", "Activity", activity.id, f"Updated activity type={activity_type_id}, start={start_time}")
             db.session.commit()
                  
         else:
@@ -832,6 +874,8 @@ def add_activity():
                     description=description
                 )
                 db.session.add(activity)
+                db.session.flush() # Get ID
+                log_change(current_user.id, "CREATE", "Activity", activity.id, f"Created activity type={activity_type_id}, user={uid}")
                 count_created += 1
             
             db.session.commit()
@@ -865,6 +909,7 @@ def delete_activity(id):
                     exception = ActivityException(activity_id=activity.id, date=target_date)
                     db.session.add(exception)
                     db.session.commit()
+                    log_change(current_user.id, "CREATE", "ActivityException", exception.id, f"Added exception for activity {activity.id} on {target_date}")
                     print(f"Added exception for activity {activity.id} on {target_date}")
             except ValueError:
                 print("Invalid date format for deletion exception")
@@ -873,6 +918,7 @@ def delete_activity(id):
             # Use cascade delete? Or manually delete exceptions first?
             ActivityException.query.filter_by(activity_id=id).delete()
             db.session.delete(activity)
+            log_change(current_user.id, "DELETE", "Activity", activity.id, "Deleted activity and its exceptions")
             db.session.commit()
             print(f"Deleted activity {activity.id}")
             
@@ -1802,6 +1848,9 @@ def publish_schedule(year, month):
                 Activity.start_time < datetime.combine(end_date + timedelta(days=1), datetime.min.time())
             ).delete(synchronize_session=False)
             
+            # Log bulk delete
+            log_change(current_user.id, "BULK_DELETE", "Activity", None, f"Deleted all activities for service {g.current_service.name} in {year}-{month} before publish")
+            
         # Track new keys to avoid duplicates within the draft itself
         existing_keys = set()
 
@@ -1846,6 +1895,9 @@ def publish_schedule(year, month):
                 # Add to set to prevent duplicates within the same batch
                 existing_keys.add(key)
                 count_created += 1
+            
+        # Log bulk create
+        log_change(current_user.id, "BULK_CREATE", "Activity", None, f"Published {count_created} activities for {year}-{month}")
             
         # 3. Create Shifts (Legacy/Shadow) - OPTIONAL
         # User requested "move to activity category". 
