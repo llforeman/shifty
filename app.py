@@ -1607,14 +1607,14 @@ def manager_config():
 def admin_create_user():
     if request.method == 'POST':
         name = request.form.get('name')
-        email = request.form.get('email')
+        username_code = request.form.get('email').strip() # Used as Code/Username
         role = request.form.get('role')
         staff_type = request.form.get('staff_type')
         is_mir = request.form.get('is_mir') == 'yes'
         
         # Validation
-        if User.query.filter_by(email=email).first():
-            flash('El email ya está registrado.', 'error')
+        if User.query.filter_by(username=username_code).first():
+            flash(f'El usuario/código "{username_code}" ya existe.', 'error')
             return redirect(url_for('admin_create_user'))
             
         try:
@@ -1640,10 +1640,16 @@ def admin_create_user():
                     ped_id = new_ped.id
             
             # 2. Create User
-            # We use email as username to ensure uniqueness and simplicity
+            user_email = username_code if '@' in username_code else None
+            
+            # Additional check if it IS an email and exists in email column
+            if user_email and User.query.filter_by(email=user_email).first():
+                 flash('Este email ya está en uso por otro usuario.', 'error')
+                 return redirect(url_for('admin_create_user'))
+
             new_user = User(
-                username=email, 
-                email=email, 
+                username=username_code, 
+                email=user_email, 
                 role=role,
                 pediatrician_id=ped_id,
                 must_change_password=True,
