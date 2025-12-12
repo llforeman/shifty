@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, abort, jsonify, g, flash
+from flask import Flask, render_template, request, redirect, url_for, abort, jsonify, g, flash, session
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
@@ -54,13 +54,20 @@ else:
     app.config['SESSION_COOKIE_SECURE'] = False
     
 app.config['SESSION_COOKIE_HTTPONLY'] = True  # Security best practice
-app.config['PERMANENT_SESSION_LIFETIME'] = 86400  # 24 hours
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=15) # Idle timeout
 
 # Initialize extensions
 # db = SQLAlchemy(app) # Already initialized above
 migrate = Migrate(app, db) # Initialize Flask-Migrate
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
+# Custom message for security timeout
+login_manager.login_message = "Por seguridad, su sesión ha expirado tras 15 minutos de inactividad."
+login_manager.login_message_category = "error"
+
+@app.before_request
+def make_session_permanent():
+    session.permanent = True
 
 @app.before_request
 def load_service_context():
