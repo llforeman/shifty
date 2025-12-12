@@ -1614,7 +1614,7 @@ def manager_config():
 def admin_create_user():
     if request.method == 'POST':
         name = request.form.get('name')
-        username_code = request.form.get('email').strip() # Used as Code/Username
+        username_code = request.form.get('username_code').strip() # Used as Code/Username
         role = request.form.get('role')
         staff_type = request.form.get('staff_type')
         is_mir = request.form.get('is_mir') == 'yes'
